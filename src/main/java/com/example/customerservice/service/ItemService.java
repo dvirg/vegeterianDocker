@@ -5,6 +5,8 @@ import com.example.customerservice.repository.ItemRepository;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.Comparator;
 import java.util.Optional;
 import java.util.Map;
 import java.util.HashMap;
@@ -20,7 +22,9 @@ public class ItemService {
     }
 
     public List<Item> findAll() {
-        return repository.findAll();
+        List<Item> items = repository.findAll();
+        items.sort(Comparator.comparing(Item::getName, Comparator.nullsFirst(String::compareTo)));
+        return items;
     }
 
     public List<Item> getAllItems() {
@@ -41,6 +45,26 @@ public class ItemService {
 
     public void deleteAllItems() {
         repository.deleteAll();
+    }
+
+    @Transactional
+    public void setAllAvailable(boolean available) {
+        List<Item> items = repository.findAll();
+        for (Item i : items) {
+            i.setAvailable(available);
+        }
+        repository.saveAll(items);
+    }
+
+    @Transactional
+    public void setAllKgAvailable(boolean available) {
+        List<Item> items = repository.findAll();
+        for (Item i : items) {
+            if (i.getType() == Item.ItemType.kg) {
+                i.setAvailable(available);
+            }
+        }
+        repository.saveAll(items);
     }
 
     public String buildPriceList() {

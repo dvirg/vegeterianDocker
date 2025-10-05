@@ -62,4 +62,22 @@ public class ItemController {
         }
         return "redirect:/items";
     }
+
+    @PostMapping("/set-all-unavailable")
+    public String setAllUnavailable() {
+        service.setAllAvailable(false);
+        return "redirect:/items";
+    }
+
+    @PostMapping("/set-all-available")
+    public String setAllAvailable() {
+        service.setAllAvailable(true);
+        return "redirect:/items";
+    }
+
+    @PostMapping("/set-all-kg-available")
+    public String setAllKgAvailable() {
+        service.setAllKgAvailable(true);
+        return "redirect:/items";
+    }
 }
