@@ -51,4 +51,15 @@ public class ItemController {
         service.deleteById(id);
         return "redirect:/items";
     }
+
+    @PostMapping("/toggle/{id}")
+    public String toggleAvailability(@PathVariable Long id) {
+        var opt = service.findById(id);
+        if (opt.isPresent()) {
+            Item item = opt.get();
+            item.setAvailable(!item.isAvailable());
+            service.save(item);
+        }
+        return "redirect:/items";
+    }
 }

@@ -30,4 +30,8 @@ public class OrderItemService {
     public void deleteById(Long id) {
         repository.deleteById(id);
     }
+
+    public void deleteAllOrderItems() {
+        repository.deleteAll();
+    }
 }

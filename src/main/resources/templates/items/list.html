@@ -22,19 +22,29 @@
                 <tr>
                     <th>ID</th>
                     <th>Name</th>
+                    <th>Available</th>
                     <th>Price</th>
                     <th>Type</th>
-                    <th>Available</th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <tr th:each="i : ${items}">
                     <td th:text="${i.id}"></td>
-                    <td th:text="${i.name}"></td>
+                    <td>
+                        <div dir="rtl" class="text-end" th:text="${i.name}"></div>
+                    </td>
+                    <td>
+                        <form th:action="@{/items/toggle/{id}(id=${i.id})}" method="post" th:object="${i}">
+                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch"
+                                    th:checked="${i.available}" onchange="this.form.submit()" />
+                            </div>
+                        </form>
+                    </td>
                     <td th:text="${i.price}"></td>
                     <td th:text="${i.type}"></td>
-                    <td th:text="${i.available}"></td>
                     <td>
                         <a th:href="@{/items/edit/{id}(id=${i.id})}" class="btn btn-sm btn-secondary">Edit</a>
                         <form th:action="@{/items/delete/{id}(id=${i.id})}" method="post"

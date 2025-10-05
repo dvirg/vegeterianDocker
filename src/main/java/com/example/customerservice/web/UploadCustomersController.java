@@ -20,10 +20,10 @@ import java.nio.charset.StandardCharsets;
 
 @Controller
 @RequestMapping("/upload-customers-csv")
-public class UploadController {
+public class UploadCustomersController {
     private final CustomerService customerService;
 
-    public UploadController(CustomerService customerService) {
+    public UploadCustomersController(CustomerService customerService) {
         this.customerService = customerService;
     }
 
@@ -53,12 +53,10 @@ public class UploadController {
                 if (parts.length < 3)
                     continue;
                 String name = parts[0].trim();
-                if (parts.length > 1 && !parts[1].trim().isEmpty())
-                    name = name + " " + parts[1].trim();
-                String phone = parts[2].trim();
+                String phone = parts[1].trim();
                 if (!phone.startsWith("0"))
                     phone = "0" + phone;
-                String address = parts.length > 3 ? parts[3].trim() : "";
+                String address = parts.length > 2 ? parts[2].trim() : "";
                 Customer customer = new Customer();
                 customer.setName(name);
                 customer.setPhones(phone);
