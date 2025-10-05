@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Customers</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 20px
+        }
+    </style>
+</head>
+
+<body>
+    <div th:insert="~{fragments/navbar :: mainNav}"></div>
+    <div class="container">
+        <h1>Customers</h1>
+
+        <div class="mb-3">
+            <button id="newBtn" class="btn btn-primary">New</button>
+            <button id="saveBtn" class="btn btn-success">Save</button>
+            <button id="deleteBtn" class="btn btn-danger">Delete</button>
+            <button id="deleteAllBtn" class="btn btn-warning">Delete All Customers</button>
+            <a class="btn btn-secondary" th:href="@{/customers/export}">Export to CSV</a>
+        </div>
+
+        <div class="row">
+            <div class="col-md-8">
+                <table id="customersTable" class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Name</th>
+                            <th>Phones</th>
+                            <th>Email</th>
+                            <th>Address</th>
+                            <th>Default Package</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="c : ${customers}" th:data-id="${c.id}">
+                            <td th:text="${c.id}"></td>
+                            <td th:text="${c.name}"></td>
+                            <td th:text="${c.phones}"></td>
+                            <td th:text="${c.email}"></td>
+                            <td th:text="${c.address}"></td>
+                            <td th:text="${c.defaultPackage}"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="col-md-4">
+                <form id="customerForm" th:action="@{/customers}" method="post">
+                    <input type="hidden" id="id" name="id" th:value="${customer.id}" />
+                    <div class="mb-2">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" id="name" name="name" th:value="${customer.name}" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Phones</label>
+                        <input class="form-control" id="phones" name="phones" th:value="${customer.phones}" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Address</label>
+                        <input class="form-control" id="address" name="address" th:value="${customer.address}" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Email</label>
+                        <input class="form-control" id="email" name="email" th:value="${customer.email}" />
+                    </div>
+                    <div class="mb-2">
+                        <label class="form-label">Default Package</label>
+                        <select class="form-select" id="defaultPackage" name="defaultPackage">
+                            <option th:each="t : ${types}" th:value="${t}" th:text="${t}"></option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <script>
+            // Row selection populates form
+            document.addEventListener('DOMContentLoaded', function () {
+                const table = document.getElementById('customersTable');
+                let selectedRow = null;
+
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    row.addEventListener('click', () => {
+                        if (selectedRow) selectedRow.classList.remove('table-active');
+                        selectedRow = row;
+                        row.classList.add('table-active');
+                        const id = row.getAttribute('data-id');
+                        // populate form from cells
+                        document.getElementById('id').value = id;
+                        const cells = row.querySelectorAll('td');
+                        document.getElementById('name').value = cells[1].innerText.trim();
+                        document.getElementById('phones').value = cells[2].innerText.trim();
+                        document.getElementById('email').value = cells[3].innerText.trim();
+                        document.getElementById('address').value = cells[4].innerText.trim();
+                        document.getElementById('defaultPackage').value = cells[5].innerText.trim();
+                    });
+                });
+
+                document.getElementById('newBtn').addEventListener('click', () => {
+                    document.getElementById('customerForm').reset();
+                    document.getElementById('id').value = '';
+                });
+
+                document.getElementById('saveBtn').addEventListener('click', () => {
+                    document.getElementById('customerForm').submit();
+                });
+
+                document.getElementById('deleteBtn').addEventListener('click', () => {
+                    const id = document.getElementById('id').value;
+                    if (!id) return alert('Select a customer first');
+                    if (!confirm('Delete customer?')) return;
+                    // create a form and POST to /customers/delete/{id}
+                    const form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = '/customers/delete/' + id;
+                    document.body.appendChild(form);
+                    form.submit();
+                });
+
+                document.getElementById('deleteAllBtn').addEventListener('click', () => {
+                    if (!confirm('Delete ALL customers?')) return;
+                    const form = document.createElement('form');
+                    form.method = 'post';
+                    form.action = '/customers/delete-all';
+                    document.body.appendChild(form);
+                    form.submit();
+                });
+            });
+        </script>
+    </div>
+</body>
+
+</html>

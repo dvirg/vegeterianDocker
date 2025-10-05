@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Order Form</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 20px
+        }
+    </style>
+</head>
+
+<body>
+    <div th:insert="~{fragments/navbar :: mainNav}"></div>
+    <div class="container">
+        <h1 th:text="${order.orderId} == null ? 'New Order' : 'Edit Order'"></h1>
+        <form th:action="@{/orders}" th:object="${order}" method="post">
+            <input type="hidden" th:field="*{orderId}" />
+            <div class="mb-3">
+                <label class="form-label">Date</label>
+                <input class="form-control" type="date" th:field="*{date}" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Customer</label>
+                <select class="form-select" th:field="*{customer.id}"
+                    th:onchange="document.getElementById('customerName').value = this.options[this.selectedIndex].text">
+                    <option th:each="c : ${customers}" th:value="${c.id}" th:text="${c.name}"></option>
+                </select>
+                <input type="hidden" id="customerName" th:field="*{customer.name}" />
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Selected Package</label>
+                <select class="form-select" th:field="*{selectedPackage}">
+                    <option th:each="p : ${packages}" th:value="${p}" th:text="${p}"></option>
+                </select>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Package Value</label>
+                <input class="form-control" type="number" th:field="*{packageValue}" />
+            </div>
+            <button class="btn btn-primary" type="submit">Save</button>
+            <a class="btn btn-secondary" th:href="@{/orders}">Cancel</a>
+        </form>
+    </div>
+</body>
+
+</html>

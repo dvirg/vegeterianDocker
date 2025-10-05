@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Order Items</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 20px
+        }
+    </style>
+</head>
+
+<body>
+    <div th:insert="~{fragments/navbar :: mainNav}"></div>
+    <div class="container">
+        <h1>Order Items</h1>
+        <a class="btn btn-primary mb-3" th:href="@{/order-items/new}">New Order Item</a>
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Order ID</th>
+                    <th>Item ID</th>
+                    <th>Amount</th>
+                    <th>Total Price</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr th:each="oi : ${orderItems}">
+                    <td th:text="${oi.id}"></td>
+                    <td th:text="${oi.order != null ? oi.order.orderId : ''}"></td>
+                    <td th:text="${oi.item != null ? oi.item.id : ''}"></td>
+                    <td th:text="${oi.item != null ? oi.item.name : ''}"></td>
+                    <td th:text="${oi.amount}"></td>
+                    <td th:text="${oi.totalPrice}"></td>
+                    <td>
+                        <a th:href="@{/order-items/edit/{id}(id=${oi.id})}" class="btn btn-sm btn-secondary">Edit</a>
+                        <form th:action="@{/order-items/delete/{id}(id=${oi.id})}" method="post"
+                            th:onsubmit="return confirm('Delete?')" style="display:inline">
+                            <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</body>
+
+</html>

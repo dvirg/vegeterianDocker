@@ -1,0 +1,76 @@
+package com.example.customerservice.web;
+
+import com.example.customerservice.model.Order;
+import com.example.customerservice.model.Item;
+import com.example.customerservice.model.OrderItem;
+import com.example.customerservice.service.OrderItemService;
+import com.example.customerservice.service.OrderService;
+import com.example.customerservice.service.ItemService;
+import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Optional;
+
+@Controller
+@RequestMapping("/order-items")
+public class OrderItemController {
+    private final OrderItemService service;
+    private final OrderService orderService;
+    private final ItemService itemService;
+
+    public OrderItemController(OrderItemService service, OrderService orderService, ItemService itemService) {
+        this.service = service;
+        this.orderService = orderService;
+        this.itemService = itemService;
+    }
+
+    @GetMapping
+    public String list(Model model) {
+        model.addAttribute("orderItems", service.findAll());
+        return "order_items/list";
+    }
+
+    @GetMapping("/new")
+    public String createForm(Model model) {
+        model.addAttribute("orderItem", new OrderItem());
+        model.addAttribute("orders", orderService.findAll());
+        model.addAttribute("items", itemService.findAll());
+        return "order_items/form";
+    }
+
+    @PostMapping
+    public String create(@ModelAttribute OrderItem orderItem) {
+        // ensure relations are set (if submitted as ids in nested properties)
+        if (orderItem.getOrder() != null && orderItem.getOrder().getOrderId() != null) {
+            Order o = orderService.findById(orderItem.getOrder().getOrderId()).orElse(null);
+            orderItem.setOrder(o);
+        }
+        if (orderItem.getItem() != null && orderItem.getItem().getId() != null) {
+            Item it = itemService.findById(orderItem.getItem().getId()).orElse(null);
+            orderItem.setItem(it);
+            if (it != null) {
+                orderItem.setTotalPrice(it.getPrice() * orderItem.getAmount());
+            }
+        }
+        service.save(orderItem);
+        return "redirect:/order-items";
+    }
+
+    @GetMapping("/edit/{id}")
+    public String editForm(@PathVariable Long id, Model model) {
+        Optional<OrderItem> o = service.findById(id);
+        if (o.isEmpty())
+            return "redirect:/order-items";
+        model.addAttribute("orderItem", o.get());
+        model.addAttribute("orders", orderService.findAll());
+        model.addAttribute("items", itemService.findAll());
+        return "order_items/form";
+    }
+
+    @PostMapping("/delete/{id}")
+    public String delete(@PathVariable Long id) {
+        service.deleteById(id);
+        return "redirect:/order-items";
+    }
+}
