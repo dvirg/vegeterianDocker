@@ -9,6 +9,14 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  session:
+    timeout: 30d
+  cache:
+    type: caffeine
+    caffeine:
+      spec: maximumSize=5000,expireAfterWrite=30d
+    cache-names:
+      - sessions
 
 server:
   port: 8080
