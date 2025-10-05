@@ -3,6 +3,7 @@ package com.example.customerservice.service;
 import com.example.customerservice.model.OrderItem;
 import com.example.customerservice.repository.OrderItemRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,6 +26,11 @@ public class OrderItemService {
 
     public OrderItem save(OrderItem oi) {
         return repository.save(oi);
+    }
+
+    @Transactional
+    public java.util.List<OrderItem> saveAll(java.util.List<OrderItem> items) {
+        return repository.saveAll(items);
     }
 
     public void deleteById(Long id) {

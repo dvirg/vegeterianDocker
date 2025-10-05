@@ -13,7 +13,12 @@ import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.usermodel.XSSFColor;
+import org.apache.poi.xssf.usermodel.XSSFFont;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,8 +29,15 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.io.InputStream;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Iterator;
+import static com.example.customerservice.util.ExcelProcess.*;
 
 @Controller
 @RequestMapping("/upload-orders-excel")
@@ -55,7 +67,58 @@ public class UploadOrdersExcelController {
             return "redirect:/upload-orders-excel";
         }
 
-        try (InputStream in = file.getInputStream(); XSSFWorkbook workbook = new XSSFWorkbook(in)) {
+        // Persist uploaded orders file to uploaded_excels folder with timestamped name
+        File savedFile = null;
+        try {
+            String ordersFolder = "uploaded_excels";
+            File folder = new File(ordersFolder);
+            if (!folder.exists())
+                folder.mkdirs();
+            String savedName = "items_orders_" + (new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date())) + ".xlsx";
+            savedFile = new File(folder, savedName);
+            try (InputStream fin = file.getInputStream(); XSSFWorkbook workbookForSave = new XSSFWorkbook(fin)) {
+                try (FileOutputStream fos = new FileOutputStream(savedFile)) {
+                    workbookForSave.write(fos);
+                }
+            }
+            // Convert to XSSFWorkbook earlier so we can apply formatting before saving
+            try (XSSFWorkbook workbookForSave = new XSSFWorkbook(savedFile)) {
+                Sheet ordersSheet = workbookForSave.getSheetAt(0);
+
+                blankCustomers(ordersSheet);
+                clearSpecificValues(ordersSheet);
+                clearNonMergedCellValuesInColumns(ordersSheet);
+                makeColumnsInvisible(ordersSheet);
+                cleanupItemNames(ordersSheet);
+                boldQuantities(ordersSheet);
+                setColumnWidths(ordersSheet);
+                setPageSetup(ordersSheet);
+
+                savedName = "items_orders_" + (new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date())) + ".xlsx";
+                savedFile = new File(folder, savedName);
+                try (FileOutputStream fos = new FileOutputStream(savedFile)) {
+                    workbookForSave.write(fos);
+                }
+            }
+
+            // Keep only the 5 most recent items_orders_*.xlsx files
+            File[] versions = folder
+                    .listFiles((dir, name) -> name.startsWith("items_orders_") && name.endsWith(".xlsx"));
+            if (versions != null && versions.length > 5) {
+                Arrays.sort(versions, Comparator.comparingLong(File::lastModified).reversed());
+                for (int i = 5; i < versions.length; i++) {
+                    try {
+                        versions[i].delete();
+                    } catch (Exception ignored) {
+                    }
+                }
+            }
+        } catch (Exception ex) {
+            // Non-fatal: log and continue processing the workbook
+            ex.printStackTrace();
+        }
+
+        try (InputStream in = new java.io.FileInputStream(savedFile); XSSFWorkbook workbook = new XSSFWorkbook(in)) {
             // Clear existing data as the old Vaadin code did
             itemService.deleteAllItems();
             orderItemService.deleteAllOrderItems();
@@ -63,6 +126,8 @@ public class UploadOrdersExcelController {
 
             Sheet sheet = workbook.getSheetAt(0);
             int[][] columns = new int[][] { { 0, 1, 2 }, { 4, 5, 6 } };
+
+            java.util.List<OrderItem> orderItemsToSave = new java.util.ArrayList<>();
 
             for (int[] colSet : columns) {
                 Iterator<Row> rowIterator = sheet.iterator();
@@ -143,11 +208,19 @@ public class UploadOrdersExcelController {
                                 oi.setItem(item);
                                 oi.setAmount(quantity);
                                 oi.setTotalPrice(totalValue);
-                                orderItemService.save(oi);
+                                orderItemsToSave.add(oi);
                             }
                         }
                     }
                 }
+            }
+
+            // Save OrderItems in chunks to reduce DB round-trips
+            final int BATCH_SIZE = 50;
+            for (int i = 0; i < orderItemsToSave.size(); i += BATCH_SIZE) {
+                int end = Math.min(i + BATCH_SIZE, orderItemsToSave.size());
+                java.util.List<OrderItem> batch = orderItemsToSave.subList(i, end);
+                orderItemService.saveAll(batch);
             }
 
             redirectAttrs.addFlashAttribute("message", "Excel processed and data imported.");
@@ -155,15 +228,8 @@ public class UploadOrdersExcelController {
             redirectAttrs.addFlashAttribute("message", "Error processing file: " + ex.getMessage());
         }
 
-        return "redirect:/customers";
+        return "redirect:/upload-packages-paybox";
     }
 
-    private float strToFloat(String s) {
-        try {
-            String cleaned = s.replaceAll("[^0-9.-]", "");
-            return (float) Math.round(Double.parseDouble(cleaned) * 1000.0) / 1000;
-        } catch (Exception e) {
-            return 0f;
-        }
-    }
+    // --- end helpers ---
 }

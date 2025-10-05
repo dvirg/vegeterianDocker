@@ -8,6 +8,7 @@
 </head>
 
 <body>
+    <div th:replace="fragments/navbar :: mainNav"></div>
     <div class="container mt-5">
         <h1>Upload Orders Excel</h1>
         <div th:if="${message}" class="alert alert-info" th:text="${message}"></div>
