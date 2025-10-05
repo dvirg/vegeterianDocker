@@ -1,4 +1,4 @@
-package com.example.vegeterian.util;
+package com.example.customerservice.util;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;

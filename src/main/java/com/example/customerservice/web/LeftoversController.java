@@ -6,6 +6,7 @@ import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -14,7 +15,6 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
 import java.io.InputStream;
 import java.math.BigInteger;
 import java.time.LocalDateTime;
@@ -154,8 +154,8 @@ public class LeftoversController {
         imgTable.getCTTbl().getTblPr().addNewBidiVisual().setVal(true);
         imgTable.setWidth("100%");
 
-        addImageWithCaption(imgTable.getRow(0).getCell(0), "src/main/resources/images/paybox.png", "פייבוקס");
-        addImageWithCaption(imgTable.getRow(0).getCell(1), "src/main/resources/images/bit.png", "ביט");
+        addImageWithCaption(imgTable.getRow(0).getCell(0), "images/paybox.png", "פייבוקס");
+        addImageWithCaption(imgTable.getRow(0).getCell(1), "images/bit.png", "ביט");
 
         return doc;
     }
@@ -163,7 +163,8 @@ public class LeftoversController {
     private void addImageWithCaption(XWPFTableCell cell, String imagePath, String caption) throws Exception {
         XWPFParagraph imgPara = cell.addParagraph();
         imgPara.setAlignment(ParagraphAlignment.CENTER);
-        try (InputStream is = new FileInputStream(imagePath)) {
+        ClassPathResource res = new ClassPathResource(imagePath);
+        try (InputStream is = res.getInputStream()) {
             imgPara.createRun().addPicture(is, XWPFDocument.PICTURE_TYPE_PNG, imagePath,
                     Units.toEMU(2 * 72), Units.toEMU(2 * 72));
         }
