@@ -5,6 +5,7 @@ import com.example.customerservice.service.ItemService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.http.ResponseEntity;
 
 import java.util.Optional;
 
@@ -61,6 +62,18 @@ public class ItemController {
             service.save(item);
         }
         return "redirect:/items";
+    }
+
+    @PostMapping("/toggle-ajax/{id}")
+    public ResponseEntity<Void> toggleAvailabilityAjax(@PathVariable Long id) {
+        var opt = service.findById(id);
+        if (opt.isPresent()) {
+            Item item = opt.get();
+            item.setAvailable(!item.isAvailable());
+            service.save(item);
+            return ResponseEntity.ok().build();
+        }
+        return ResponseEntity.notFound().build();
     }
 
     @PostMapping("/set-all-unavailable")

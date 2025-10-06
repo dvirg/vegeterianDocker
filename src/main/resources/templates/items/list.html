@@ -34,6 +34,9 @@
                 <button class="btn btn-info ms-2" type="submit">Set All KG Available</button>
             </form>
         </div>
+        <meta name="_csrf" th:content="${_csrf.token}" />
+        <meta name="_csrf_header" th:content="${_csrf.headerName}" />
+
         <table class="table table-striped">
             <thead>
                 <tr>
@@ -52,13 +55,10 @@
                         <div dir="rtl" class="text-end" th:text="${i.name}"></div>
                     </td>
                     <td>
-                        <form th:action="@{/items/toggle/{id}(id=${i.id})}" method="post" th:object="${i}">
-                            <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}" />
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" role="switch"
-                                    th:checked="${i.available}" onchange="this.form.submit()" />
-                            </div>
-                        </form>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input avail-toggle" type="checkbox" role="switch"
+                                th:attr="data-id=${i.id}" th:checked="${i.available}" />
+                        </div>
                     </td>
                     <td th:text="${i.price}"></td>
                     <td th:text="${i.type}"></td>
@@ -73,6 +73,39 @@
             </tbody>
         </table>
     </div>
+    <script>
+        (function () {
+            const csrfToken = document.querySelector('meta[name="_csrf"]').getAttribute('content');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]').getAttribute('content');
+
+            function postToggle(id) {
+                return fetch(`/items/toggle-ajax/${id}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        [csrfHeader]: csrfToken
+                    }
+                });
+            }
+
+            document.addEventListener('change', function (e) {
+                if (!e.target.classList.contains('avail-toggle')) return;
+                const checkbox = e.target;
+                const id = checkbox.getAttribute('data-id');
+                // optimistically toggle; if server errors, revert
+                const prev = !checkbox.checked;
+                postToggle(id).then(resp => {
+                    if (!resp.ok) {
+                        checkbox.checked = prev;
+                        alert('Update failed');
+                    }
+                }).catch(err => {
+                    checkbox.checked = prev;
+                    alert('Update failed');
+                });
+            });
+        })();
+    </script>
 </body>
 
 </html>
