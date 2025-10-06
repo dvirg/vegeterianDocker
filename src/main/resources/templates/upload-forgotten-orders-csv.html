@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Upload Forgotten Orders CSV</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+</head>
+
+<body>
+    <div th:insert="~{fragments/navbar :: mainNav}"></div>
+    <div class="container mt-4">
+        <h1>Upload Forgotten Orders CSV</h1>
+        <p>Upload a CSV file with columns: order id, first name, last name, order creation date, ...</p>
+
+        <form th:action="@{/upload-forgotten-orders-csv/process}" method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <input class="form-control" type="file" name="file" accept=".csv" />
+            </div>
+            <button class="btn btn-primary" type="submit">Process CSV</button>
+        </form>
+
+        <div th:if="${message != null}" class="alert alert-info mt-3" th:text="${message}"></div>
+
+        <div th:if="${results != null}" class="mt-4">
+            <h3 th:text="${count} + ' customers matched.'"></h3>
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Phones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="c : ${results}">
+                        <td th:text="${c.name}"></td>
+                        <td th:text="${c.phones}"></td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+
+</html>
