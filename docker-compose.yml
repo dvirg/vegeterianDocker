@@ -14,8 +14,8 @@ services:
     build: .
     depends_on:
       - db
-    expose:
-      - "8080"
+    ports:
+      - "8080:8080"
     env_file:
       - .env
     environment:
@@ -23,14 +23,6 @@ services:
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: example
       JAVA_TOOL_OPTIONS: ""
-
-  proxy:
-    build: ./nginx
-    ports:
-      - "443:443"
-      - "80:80"
-    depends_on:
-      - app
 
 volumes:
   db_data:
