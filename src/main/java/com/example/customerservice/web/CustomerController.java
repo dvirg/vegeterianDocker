@@ -51,17 +51,13 @@ public class CustomerController {
     public org.springframework.http.ResponseEntity<org.springframework.core.io.InputStreamResource> exportCsv() {
         java.util.List<Customer> customers = service.findAll();
         StringBuilder csv = new StringBuilder();
-        csv.append("id,name,phones,address,email,defaultPackage,metadata\n");
+        csv.append("name,phones,address\n");
         for (Customer c : customers) {
             String name = c.getName() == null ? "" : c.getName().replaceAll("[\\n\\r]", "").replace("\"", "\"\"");
             String phones = c.getPhones() == null ? "" : c.getPhones().replaceAll("[\\n\\r]", "").replace("\"", "\"\"");
             String address = c.getAddress() == null ? ""
                     : c.getAddress().replaceAll("[\\n\\r]", "").replace("\"", "\"\"");
-            String email = c.getEmail() == null ? "" : c.getEmail().replaceAll("[\\n\\r]", "").replace("\"", "\"\"");
-            String def = c.getDefaultPackage() == null ? "" : c.getDefaultPackage().name();
-            String metadata = c.getMetadata() == null ? ""
-                    : c.getMetadata().replaceAll("[\\n\\r]", "").replace("\"", "\"\"");
-            csv.append(String.format("%s,%s,%s,%s,%s,%s,%s\n", c.getId(), name, phones, address, email, def, metadata));
+            csv.append(String.format("%s,%s,%s\n", name, phones, address));
         }
         java.io.ByteArrayInputStream is = new java.io.ByteArrayInputStream(
                 csv.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
