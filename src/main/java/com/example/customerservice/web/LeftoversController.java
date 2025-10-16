@@ -2,6 +2,7 @@ package com.example.customerservice.web;
 
 import com.example.customerservice.service.ItemService;
 import com.example.customerservice.util.TelegramClient;
+import org.springframework.beans.factory.annotation.Value;
 import org.apache.poi.util.Units;
 import org.apache.poi.xwpf.usermodel.*;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.*;
@@ -24,9 +25,15 @@ import java.time.format.DateTimeFormatter;
 public class LeftoversController {
 
     private final ItemService itemService;
+    private final String telegramToken;
+    private final String telegramChatId;
 
-    public LeftoversController(ItemService itemService) {
+    public LeftoversController(ItemService itemService,
+                               @Value("${TELEGRAM_TOKEN:}") String telegramToken,
+                               @Value("${TELEGRAM_CHAT_ID:}") String telegramChatId) {
         this.itemService = itemService;
+        this.telegramToken = telegramToken;
+        this.telegramChatId = telegramChatId;
     }
 
     @GetMapping("/leftovers")
@@ -35,8 +42,18 @@ public class LeftoversController {
         model.addAttribute("priceList", priceList);
 
         try {
-            TelegramClient telegramClient = new TelegramClient();
-            telegramClient.sendMessage(priceList);
+            try {
+                if (telegramToken != null && !telegramToken.isEmpty() && telegramChatId != null && !telegramChatId.isEmpty()) {
+                    TelegramClient telegramClient = new TelegramClient(telegramToken, telegramChatId);
+                    telegramClient.sendMessage(priceList);
+                } else {
+                    // Fall back to file-based or env-based lookup inside TelegramClient default ctor
+                    TelegramClient telegramClient = new TelegramClient();
+                    telegramClient.sendMessage(priceList);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
         } catch (Exception e) {
             e.printStackTrace();
         }

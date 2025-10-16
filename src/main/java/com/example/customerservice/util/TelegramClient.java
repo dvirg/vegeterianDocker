@@ -14,7 +14,6 @@ public class TelegramClient {
 
     private final String token;
     private final String chatId;
-
     public TelegramClient() throws Exception {
         File credentialsFile = new File("src/main/resources/credentials/telegram.json");
         if (credentialsFile.exists()) {
@@ -29,6 +28,15 @@ public class TelegramClient {
                 throw new IllegalStateException("Telegram credentials not found in file or environment variables.");
             }
         }
+    }
+
+    // Allow injecting credentials directly (useful for Spring-managed properties)
+    public TelegramClient(String token, String chatId) {
+        if (token == null || chatId == null) {
+            throw new IllegalArgumentException("token and chatId must not be null");
+        }
+        this.token = token;
+        this.chatId = chatId;
     }
 
     public void sendMessage(String message) throws Exception {

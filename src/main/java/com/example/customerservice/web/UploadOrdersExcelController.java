@@ -74,30 +74,36 @@ public class UploadOrdersExcelController {
             File folder = new File(ordersFolder);
             if (!folder.exists())
                 folder.mkdirs();
+
+            // Save uploaded file bytes directly to disk to avoid corrupting the ZIP stream
             String savedName = "items_orders_" + (new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date())) + ".xlsx";
             savedFile = new File(folder, savedName);
-            try (InputStream fin = file.getInputStream(); XSSFWorkbook workbookForSave = new XSSFWorkbook(fin)) {
-                try (FileOutputStream fos = new FileOutputStream(savedFile)) {
-                    workbookForSave.write(fos);
+            try {
+                // Use transferTo which is safe and writes the raw uploaded bytes
+                file.transferTo(savedFile);
+
+                // Open saved file for formatting
+                try (XSSFWorkbook workbookForSave = new XSSFWorkbook(savedFile)) {
+                    Sheet ordersSheet = workbookForSave.getSheetAt(0);
+
+                    blankCustomers(ordersSheet);
+                    clearSpecificValues(ordersSheet);
+                    clearNonMergedCellValuesInColumns(ordersSheet);
+                    makeColumnsInvisible(ordersSheet);
+                    cleanupItemNames(ordersSheet);
+                    boldQuantities(ordersSheet);
+                    setColumnWidths(ordersSheet);
+                    setPageSetup(ordersSheet);
+
+                    // Overwrite saved file with formatted workbook
+                    try (FileOutputStream fos = new FileOutputStream(savedFile)) {
+                        workbookForSave.write(fos);
+                    }
                 }
-            }
-            // Convert to XSSFWorkbook earlier so we can apply formatting before saving
-            try (XSSFWorkbook workbookForSave = new XSSFWorkbook(savedFile)) {
-                Sheet ordersSheet = workbookForSave.getSheetAt(0);
-
-                blankCustomers(ordersSheet);
-                clearSpecificValues(ordersSheet);
-                clearNonMergedCellValuesInColumns(ordersSheet);
-                makeColumnsInvisible(ordersSheet);
-                cleanupItemNames(ordersSheet);
-                boldQuantities(ordersSheet);
-                setColumnWidths(ordersSheet);
-                setPageSetup(ordersSheet);
-
-                savedName = "items_orders_" + (new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date())) + ".xlsx";
-                savedFile = new File(folder, savedName);
-                try (FileOutputStream fos = new FileOutputStream(savedFile)) {
-                    workbookForSave.write(fos);
+            } catch (Exception e) {
+                // If transfer fails, fall back to saving via stream copy (less preferred)
+                try (InputStream fin = file.getInputStream(); FileOutputStream fos = new FileOutputStream(savedFile)) {
+                    fin.transferTo(fos);
                 }
             }
 
