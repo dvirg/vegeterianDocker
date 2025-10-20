@@ -11,6 +11,9 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.List;
 
 @Controller
 @RequestMapping("/order-items")
@@ -27,7 +30,12 @@ public class OrderItemController {
 
     @GetMapping
     public String list(Model model) {
-        model.addAttribute("orderItems", service.findAll());
+        var all = service.findAll();
+        // group by order id (null-safe -> use 'unknown' key or 0)
+        Map<Long, List<com.example.customerservice.model.OrderItem>> grouped = all.stream()
+                .collect(Collectors.groupingBy(oi -> oi.getOrder() != null ? oi.getOrder().getOrderId() : 0L));
+        model.addAttribute("orderItemsByOrder", grouped);
+        model.addAttribute("orderItems", all);
         return "order_items/list";
     }
 

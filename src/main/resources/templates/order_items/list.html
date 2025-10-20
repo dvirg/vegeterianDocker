@@ -17,36 +17,49 @@
     <div class="container">
         <h1>Order Items</h1>
         <a class="btn btn-primary mb-3" th:href="@{/order-items/new}">New Order Item</a>
-        <table class="table table-striped">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Order ID</th>
-                    <th>Item ID</th>
-                    <th>Name</th>
-                    <th>Amount</th>
-                    <th>Total Price</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr th:each="oi : ${orderItems}">
-                    <td th:text="${oi.id}"></td>
-                    <td th:text="${oi.order != null ? oi.order.orderId : ''}"></td>
-                    <td th:text="${oi.item != null ? oi.item.id : ''}"></td>
-                    <td th:text="${oi.item != null ? oi.item.name : ''}"></td>
-                    <td th:text="${oi.amount}"></td>
-                    <td th:text="${oi.totalPrice}"></td>
-                    <td>
-                        <a th:href="@{/order-items/edit/{id}(id=${oi.id})}" class="btn btn-sm btn-secondary">Edit</a>
-                        <form th:action="@{/order-items/delete/{id}(id=${oi.id})}" method="post"
-                            th:onsubmit="return confirm('Delete?')" style="display:inline">
-                            <button class="btn btn-sm btn-danger" type="submit">Delete</button>
-                        </form>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+        <div th:if="${orderItemsByOrder != null}">
+            <div th:each="entry : ${orderItemsByOrder.entrySet()}">
+                <h3>
+                    Order <span th:text="${entry.key == 0 ? 'Unknown' : entry.key}"></span>
+                    <span
+                        th:if="${entry.value != null and !#lists.isEmpty(entry.value) and entry.value[0].order != null and entry.value[0].order.customer != null}">:
+                        <span th:text="${entry.value[0].order.customer.name}"></span>
+                    </span>
+                </h3>
+                <table class="table table-bordered mb-4">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Item ID</th>
+                            <th>Name</th>
+                            <th>Amount</th>
+                            <th>Total Price</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="oi : ${entry.value}">
+                            <td th:text="${oi.id}"></td>
+                            <td th:text="${oi.item != null ? oi.item.id : ''}"></td>
+                            <td th:text="${oi.item != null ? oi.item.name : ''}"></td>
+                            <td th:text="${oi.amount}"></td>
+                            <td th:text="${oi.totalPrice}"></td>
+                            <td>
+                                <a th:href="@{/order-items/edit/{id}(id=${oi.id})}"
+                                    class="btn btn-sm btn-secondary">Edit</a>
+                                <form th:action="@{/order-items/delete/{id}(id=${oi.id})}" method="post"
+                                    th:onsubmit="return confirm('Delete?')" style="display:inline">
+                                    <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <div th:if="${orderItemsByOrder == null}">
+            <p>No order items available.</p>
+        </div>
     </div>
 </body>
 
