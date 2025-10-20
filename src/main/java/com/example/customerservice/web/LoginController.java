@@ -12,7 +12,7 @@ public class LoginController {
     public String login(Authentication authentication, Model model) {
         if (authentication != null && authentication.isAuthenticated()) {
             // already authenticated -> redirect to customers
-            return "redirect:/customers";
+            return "redirect:/items/ariel";
         }
         return "login";
     }

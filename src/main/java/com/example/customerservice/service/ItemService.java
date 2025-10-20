@@ -47,6 +47,10 @@ public class ItemService {
         repository.deleteAll();
     }
 
+    public void deleteAllItemsInBatch() {
+        repository.deleteAllInBatch();
+    }
+
     @Transactional
     public void setAllAvailable(boolean available) {
         List<Item> items = repository.findAll();

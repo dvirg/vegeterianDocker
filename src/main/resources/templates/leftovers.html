@@ -13,7 +13,7 @@
 </head>
 
 <body>
-    <div th:insert="~{fragments/navbar :: mainNav}"></div>
+    <!-- <div th:insert="~{fragments/navbar :: mainNav}"></div> -->
     <div class="container">
         <h1>Items Leftovers Prices</h1>
         <div class="mb-3">
@@ -22,6 +22,10 @@
         </div>
         <textarea class="form-control ariel-text" rows="30" th:text="${priceList}"
             style="direction: rtl; text-align: right;"></textarea>
+        <div class="mt-3 d-flex justify-content-end">
+            <a th:href="@{/order-items}" class="btn btn-outline-secondary" role="button"
+                style="font-size:1.25rem;padding:0.5rem 0.75rem;">Order Items</a>
+        </div>
     </div>
     <style>
         /* Double font size for leftovers view */

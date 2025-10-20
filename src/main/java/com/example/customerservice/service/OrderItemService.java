@@ -40,4 +40,8 @@ public class OrderItemService {
     public void deleteAllOrderItems() {
         repository.deleteAll();
     }
+
+    public void deleteAllOrderItemsInBatch() {
+        repository.deleteAllInBatch();
+    }
 }

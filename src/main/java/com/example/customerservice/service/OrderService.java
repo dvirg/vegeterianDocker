@@ -34,4 +34,8 @@ public class OrderService {
     public void deleteAllOrders() {
         repository.deleteAll();
     }
+
+    public void deleteAllOrdersInBatch() {
+        repository.deleteAllInBatch();
+    }
 }

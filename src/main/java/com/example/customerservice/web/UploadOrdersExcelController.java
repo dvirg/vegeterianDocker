@@ -40,13 +40,16 @@ public class UploadOrdersExcelController {
     private final CustomerService customerService;
     private final OrderService orderService;
     private final OrderItemService orderItemService;
+    private final com.example.customerservice.service.ImportService importService;
 
     public UploadOrdersExcelController(ItemService itemService, CustomerService customerService,
-            OrderService orderService, OrderItemService orderItemService) {
+            OrderService orderService, OrderItemService orderItemService,
+            com.example.customerservice.service.ImportService importService) {
         this.itemService = itemService;
         this.customerService = customerService;
         this.orderService = orderService;
         this.orderItemService = orderItemService;
+        this.importService = importService;
     }
 
     @GetMapping
@@ -119,15 +122,13 @@ public class UploadOrdersExcelController {
         }
 
         try (InputStream in = new java.io.FileInputStream(savedFile); XSSFWorkbook workbook = new XSSFWorkbook(in)) {
-            // Clear existing data as the old Vaadin code did
-            itemService.deleteAllItems();
-            orderItemService.deleteAllOrderItems();
-            orderService.deleteAllOrders();
-
             Sheet sheet = workbook.getSheetAt(0);
             int[][] columns = new int[][] { { 0, 1, 2 }, { 4, 5, 6 } };
 
             java.util.List<OrderItem> orderItemsToSave = new java.util.ArrayList<>();
+            java.util.List<Item> itemsToSave = new java.util.ArrayList<>();
+            java.util.List<Order> ordersToSave = new java.util.ArrayList<>();
+            java.util.List<Customer> customersToSave = new java.util.ArrayList<>();
 
             for (int[] colSet : columns) {
                 Iterator<Row> rowIterator = sheet.iterator();
@@ -146,15 +147,20 @@ public class UploadOrdersExcelController {
                         String phone = parts.length > 1 ? parts[1].trim() : "";
 
                         if (currentCustomerName != null && !currentCustomerName.isEmpty()) {
-                            // find existing
-                            Customer existing = customerService.findAll().stream()
+                            // find existing in parsed list first, then in DB
+                            Customer existing = customersToSave.stream()
                                     .filter(c -> c.getName().equalsIgnoreCase(currentCustomerName))
                                     .findFirst().orElse(null);
+                            if (existing == null) {
+                                existing = customerService.findAll().stream()
+                                        .filter(c -> c.getName().equalsIgnoreCase(currentCustomerName))
+                                        .findFirst().orElse(null);
+                            }
                             if (existing == null) {
                                 Customer nc = new Customer();
                                 nc.setName(currentCustomerName);
                                 nc.setPhones(phone);
-                                customerService.save(nc);
+                                customersToSave.add(nc);
                                 currentCustomerEntity = nc;
                             } else {
                                 currentCustomerEntity = existing;
@@ -163,7 +169,8 @@ public class UploadOrdersExcelController {
                             Order newOrder = new Order();
                             newOrder.setCustomer(currentCustomerEntity);
                             newOrder.setDate(LocalDate.now());
-                            currentOrderEntity = orderService.save(newOrder);
+                            ordersToSave.add(newOrder);
+                            currentOrderEntity = newOrder;
                         } else {
                             currentCustomerEntity = null;
                             currentOrderEntity = null;
@@ -189,17 +196,21 @@ public class UploadOrdersExcelController {
                             float pricePerUnitOrKg = quantity != 0 ? totalValue / quantity : 0f;
                             ItemType itemType = quantityStr.contains("יח") ? ItemType.unit : ItemType.kg;
 
-                            Item item = itemService.findAll().stream()
+                            Item item = itemsToSave.stream()
                                     .filter(i -> i.getName().equalsIgnoreCase(product))
-                                    .findFirst().orElseGet(() -> {
-                                        Item ni = new Item();
-                                        ni.setName(product);
-                                        ni.setPrice(pricePerUnitOrKg);
-                                        ni.setType(itemType);
-                                        ni.setAvailable(false);
-                                        ni.setMetadata("Imported");
-                                        return (quantity != 0 && pricePerUnitOrKg > 0) ? itemService.save(ni) : null;
-                                    });
+                                    .findFirst().orElse(null);
+                            if (item == null) {
+                                Item ni = new Item();
+                                ni.setName(product);
+                                ni.setPrice(pricePerUnitOrKg);
+                                ni.setType(itemType);
+                                ni.setAvailable(false);
+                                ni.setMetadata("Imported");
+                                if (quantity != 0 && pricePerUnitOrKg > 0) {
+                                    itemsToSave.add(ni);
+                                    item = ni;
+                                }
+                            }
 
                             boolean valid = (quantity != 0 && pricePerUnitOrKg > 0) && item != null;
                             if (valid) {
@@ -215,13 +226,8 @@ public class UploadOrdersExcelController {
                 }
             }
 
-            // Save OrderItems in chunks to reduce DB round-trips
-            final int BATCH_SIZE = 50;
-            for (int i = 0; i < orderItemsToSave.size(); i += BATCH_SIZE) {
-                int end = Math.min(i + BATCH_SIZE, orderItemsToSave.size());
-                java.util.List<OrderItem> batch = orderItemsToSave.subList(i, end);
-                orderItemService.saveAll(batch);
-            }
+            // Now perform transactional replace
+            importService.replaceAll(customersToSave, itemsToSave, ordersToSave, orderItemsToSave);
 
             redirectAttrs.addFlashAttribute("message", "Excel processed and data imported.");
         } catch (Exception ex) {

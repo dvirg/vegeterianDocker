@@ -14,6 +14,9 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.Map;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.Comparator;
 
 @Controller
 @RequestMapping("/order-items")
@@ -34,7 +37,33 @@ public class OrderItemController {
         // group by order id (null-safe -> use 'unknown' key or 0)
         Map<Long, List<com.example.customerservice.model.OrderItem>> grouped = all.stream()
                 .collect(Collectors.groupingBy(oi -> oi.getOrder() != null ? oi.getOrder().getOrderId() : 0L));
-        model.addAttribute("orderItemsByOrder", grouped);
+
+        // Sort groups by the customer's last name (case-insensitive). If missing, sort
+        // to end.
+        List<Map.Entry<Long, List<com.example.customerservice.model.OrderItem>>> entries = new ArrayList<>(
+                grouped.entrySet());
+
+        entries.sort(Comparator.comparing(entry -> {
+            List<com.example.customerservice.model.OrderItem> list = entry.getValue();
+            if (list == null || list.isEmpty())
+                return "~"; // push empty to end
+            com.example.customerservice.model.OrderItem oi = list.get(0);
+            if (oi == null || oi.getOrder() == null || oi.getOrder().getCustomer() == null)
+                return "~";
+            String fullName = oi.getOrder().getCustomer().getName();
+            if (fullName == null || fullName.isBlank())
+                return "~";
+            String[] parts = fullName.trim().split("\\s+");
+            String last = parts[parts.length - 1];
+            return last.toLowerCase();
+        }));
+
+        LinkedHashMap<Long, List<com.example.customerservice.model.OrderItem>> ordered = new LinkedHashMap<>();
+        for (Map.Entry<Long, List<com.example.customerservice.model.OrderItem>> e : entries) {
+            ordered.put(e.getKey(), e.getValue());
+        }
+
+        model.addAttribute("orderItemsByOrder", ordered);
         model.addAttribute("orderItems", all);
         return "order_items/list";
     }
