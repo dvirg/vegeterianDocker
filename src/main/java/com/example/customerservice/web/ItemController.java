@@ -24,6 +24,12 @@ public class ItemController {
         return "items/list";
     }
 
+    @GetMapping("/ariel")
+    public String arielView(Model model) {
+        model.addAttribute("items", service.findAll());
+        return "items/ariel";
+    }
+
     @GetMapping("/new")
     public String createForm(Model model) {
         model.addAttribute("item", new Item());

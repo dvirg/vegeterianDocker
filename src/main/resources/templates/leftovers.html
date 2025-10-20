@@ -18,10 +18,27 @@
         <h1>Items Leftovers Prices</h1>
         <div class="mb-3">
             <a th:href="@{/leftovers/download}" class="btn btn-primary">Download Word</a>
-            <a th:href="@{/items}" class="btn btn-success">עדכון עודפים</a>
+            <a th:href="@{/items/ariel}" class="btn btn-success ariel-update">עדכון עודפים</a>
         </div>
-        <textarea class="form-control" rows="20" th:text="${priceList}" style="direction: rtl; text-align: right;"></textarea>
+        <textarea class="form-control ariel-text" rows="30" th:text="${priceList}"
+            style="direction: rtl; text-align: right;"></textarea>
     </div>
+    <style>
+        /* Double font size for leftovers view */
+        .ariel-text {
+            font-size: 2.8rem;
+        }
+
+        .container,
+        .container * {
+            font-size: 2rem;
+        }
+
+        .ariel-update {
+            padding: 0.85rem 1.25rem;
+            font-size: 2.25rem;
+        }
+    </style>
 </body>
 
 </html>
