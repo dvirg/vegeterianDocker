@@ -13,9 +13,11 @@ import java.util.Optional;
 @RequestMapping("/items")
 public class ItemController {
     private final ItemService service;
+    private final com.example.customerservice.service.ItemAvailabilityProducer producer;
 
-    public ItemController(ItemService service) {
+    public ItemController(ItemService service, com.example.customerservice.service.ItemAvailabilityProducer producer) {
         this.service = service;
+        this.producer = producer;
     }
 
     @GetMapping
@@ -64,8 +66,9 @@ public class ItemController {
         var opt = service.findById(id);
         if (opt.isPresent()) {
             Item item = opt.get();
-            item.setAvailable(!item.isAvailable());
-            service.save(item);
+            boolean newVal = !item.isAvailable();
+            String json = String.format("{\"action\":\"update\",\"id\":%d,\"available\":%s}", id, newVal);
+            producer.sendCommand(json);
         }
         return "redirect:/items";
     }
@@ -75,8 +78,9 @@ public class ItemController {
         var opt = service.findById(id);
         if (opt.isPresent()) {
             Item item = opt.get();
-            item.setAvailable(!item.isAvailable());
-            service.save(item);
+            boolean newVal = !item.isAvailable();
+            String json = String.format("{\"action\":\"update\",\"id\":%d,\"available\":%s}", id, newVal);
+            producer.sendCommand(json);
             return ResponseEntity.ok().build();
         }
         return ResponseEntity.notFound().build();

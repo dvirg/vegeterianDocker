@@ -16,9 +16,12 @@ import java.util.TreeMap;
 @Service
 public class ItemService {
     private final ItemRepository repository;
+    private final com.example.customerservice.service.ItemAvailabilityProducer producer;
 
-    public ItemService(ItemRepository repository) {
+    public ItemService(ItemRepository repository,
+            com.example.customerservice.service.ItemAvailabilityProducer producer) {
         this.repository = repository;
+        this.producer = producer;
     }
 
     public List<Item> findAll() {
@@ -53,22 +56,30 @@ public class ItemService {
 
     @Transactional
     public void setAllAvailable(boolean available) {
+        // send commands for each item; consumer will update DB
         List<Item> items = repository.findAll();
         for (Item i : items) {
-            i.setAvailable(available);
+            String json = String.format("{\"action\":\"update\",\"id\":%d,\"available\":%s}", i.getId(), available);
+            try {
+                producer.sendCommand(json);
+            } catch (Exception ignored) {
+            }
         }
-        repository.saveAll(items);
     }
 
     @Transactional
     public void setAllKgAvailable(boolean available) {
+        // send commands for each kg item; consumer will update DB
         List<Item> items = repository.findAll();
         for (Item i : items) {
             if (i.getType() == Item.ItemType.kg) {
-                i.setAvailable(available);
+                String json = String.format("{\"action\":\"update\",\"id\":%d,\"available\":%s}", i.getId(), available);
+                try {
+                    producer.sendCommand(json);
+                } catch (Exception ignored) {
+                }
             }
         }
-        repository.saveAll(items);
     }
 
     public String buildPriceList() {

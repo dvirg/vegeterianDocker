@@ -55,7 +55,7 @@
                     <td>
                         <div class="form-check form-switch">
                             <input class="form-check-input avail-toggle" type="checkbox" role="switch"
-                                th:attr="data-id=${i.id}" th:checked="${i.available}" />
+                                th:attr="data-id=${i.id}, data-type=${i.type}" th:checked="${i.available}" />
                         </div>
                     </td>
                 </tr>
@@ -143,6 +143,11 @@
             if (setAllAvailableForm) {
                 setAllAvailableForm.addEventListener('submit', function (ev) {
                     ev.preventDefault();
+                    // optimistic UI: set all toggles to checked immediately
+                    const checkboxes = Array.from(document.querySelectorAll('.avail-toggle'));
+                    const prev = checkboxes.map(cb => cb.checked);
+                    checkboxes.forEach(cb => cb.checked = true);
+
                     fetch(setAllAvailableForm.getAttribute('action'), {
                         method: 'POST',
                         headers: {
@@ -151,13 +156,12 @@
                         },
                         body: ''
                     }).then(resp => {
-                        if (resp.ok) {
-                            // reload the same page to reflect changes
-                            window.location.reload();
-                        } else {
+                        if (!resp.ok) {
+                            checkboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                             alert('Update failed');
                         }
                     }).catch(err => {
+                        checkboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                         alert('Update failed');
                     });
                 });
@@ -168,6 +172,11 @@
             if (setAllUnavailableForm) {
                 setAllUnavailableForm.addEventListener('submit', function (ev) {
                     ev.preventDefault();
+                    // optimistic UI: set all toggles to unchecked immediately
+                    const checkboxes = Array.from(document.querySelectorAll('.avail-toggle'));
+                    const prev = checkboxes.map(cb => cb.checked);
+                    checkboxes.forEach(cb => cb.checked = false);
+
                     fetch(setAllUnavailableForm.getAttribute('action'), {
                         method: 'POST',
                         headers: {
@@ -176,12 +185,12 @@
                         },
                         body: ''
                     }).then(resp => {
-                        if (resp.ok) {
-                            window.location.reload();
-                        } else {
+                        if (!resp.ok) {
+                            checkboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                             alert('Update failed');
                         }
                     }).catch(err => {
+                        checkboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                         alert('Update failed');
                     });
                 });
@@ -191,6 +200,12 @@
             if (setAllKgForm) {
                 setAllKgForm.addEventListener('submit', function (ev) {
                     ev.preventDefault();
+                    // optimistic UI: set only KG items to checked
+                    const all = Array.from(document.querySelectorAll('.avail-toggle'));
+                    const kgCheckboxes = all.filter(cb => cb.dataset.type && cb.dataset.type.toLowerCase().includes('kg'));
+                    const prev = kgCheckboxes.map(cb => cb.checked);
+                    kgCheckboxes.forEach(cb => cb.checked = true);
+
                     fetch(setAllKgForm.getAttribute('action'), {
                         method: 'POST',
                         headers: {
@@ -199,12 +214,12 @@
                         },
                         body: ''
                     }).then(resp => {
-                        if (resp.ok) {
-                            window.location.reload();
-                        } else {
+                        if (!resp.ok) {
+                            kgCheckboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                             alert('Update failed');
                         }
                     }).catch(err => {
+                        kgCheckboxes.forEach((cb, idx) => cb.checked = prev[idx]);
                         alert('Update failed');
                     });
                 });
