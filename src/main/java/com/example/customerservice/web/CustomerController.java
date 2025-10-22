@@ -7,6 +7,8 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.Comparator;
 import java.util.Optional;
 
 @Controller
@@ -20,7 +22,10 @@ public class CustomerController {
 
     @GetMapping
     public String list(Model model) {
-        model.addAttribute("customers", service.findAll());
+        List<Customer> customers = service.findAll();
+        // sort by id descending (highest id first)
+        customers.sort(Comparator.comparing(Customer::getId).reversed());
+        model.addAttribute("customers", customers);
         model.addAttribute("customer", new Customer());
         model.addAttribute("types", Customer.PackageType.values());
         return "customers/list";
