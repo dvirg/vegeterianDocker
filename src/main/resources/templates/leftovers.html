@@ -19,6 +19,8 @@
         <div class="mb-3">
             <a th:href="@{/leftovers/download}" class="btn btn-primary">Download Word</a>
             <a th:href="@{/items/ariel}" class="btn btn-success ariel-update">עדכון עודפים</a>
+            <button id="copyBtn" class="btn btn-outline-primary" type="button" style="margin-left:0.5rem;">Copy &
+                Go</button>
         </div>
         <textarea class="form-control ariel-text" rows="30" th:text="${priceList}"
             style="direction: rtl; text-align: right;"></textarea>
@@ -43,6 +45,40 @@
             font-size: 2.25rem;
         }
     </style>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const textarea = document.querySelector('.ariel-text');
+            const copyBtn = document.getElementById('copyBtn');
+            if (!textarea || !copyBtn) return;
+
+            copyBtn.addEventListener('click', async function () {
+                try {
+                    const text = textarea.value || textarea.innerText || '';
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(text);
+                    } else {
+                        // Fallback for older browsers
+                        textarea.select();
+                        document.execCommand('copy');
+                        window.getSelection().removeAllRanges();
+                    }
+                    const original = copyBtn.innerText;
+                    copyBtn.innerText = 'Copied!';
+                    setTimeout(() => copyBtn.innerText = original, 1400);
+                    // Open WhatsApp group link in a new tab after copying
+                    try {
+                        window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
+                    } catch (e) {
+                        // ignore window.open errors
+                        console.warn('Failed to open link', e);
+                    }
+                } catch (err) {
+                    console.error('Copy failed', err);
+                    alert('Copy failed: ' + (err && err.message ? err.message : err));
+                }
+            });
+        });
+    </script>
 </body>
 
 </html>
