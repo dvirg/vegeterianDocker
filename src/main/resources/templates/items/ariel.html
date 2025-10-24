@@ -61,6 +61,10 @@
                 </tr>
             </tbody>
         </table>
+        <!-- Duplicate Submit button at the bottom for easier access -->
+        <div class="text-center my-4">
+            <a class="btn btn-primary ariel-submit-bottom" th:href="@{/leftovers}">Submit</a>
+        </div>
     </div>
 
     <style>
@@ -103,6 +107,16 @@
         .ariel-actions .btn {
             padding: 0.9rem 1.4rem;
             font-size: 2.15rem;
+        }
+    </style>
+
+    <style>
+        /* Larger bottom submit button specifically for Ariel view */
+        .ariel-submit-bottom {
+            padding: 1.25rem 2rem;
+            font-size: 2.6rem;
+            font-weight: 800;
+            border-radius: 0.6rem;
         }
     </style>
 
