@@ -1,7 +1,9 @@
 package com.example.customerservice.web;
 
 import com.example.customerservice.model.Customer;
+import com.example.customerservice.model.CustomerSearchResult;
 import com.example.customerservice.service.CustomerService;
+import com.example.customerservice.service.OrderService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -15,9 +17,11 @@ import java.util.Optional;
 @RequestMapping("/customers")
 public class CustomerController {
     private final CustomerService service;
+    private final OrderService orderService;
 
-    public CustomerController(CustomerService service) {
+    public CustomerController(CustomerService service, OrderService orderService) {
         this.service = service;
+        this.orderService = orderService;
     }
 
     @GetMapping
@@ -88,5 +92,41 @@ public class CustomerController {
     public String delete(@PathVariable Long id) {
         service.deleteById(id);
         return "redirect:/customers";
+    }
+
+    @GetMapping("/search-by-names")
+    public String searchByNamesForm(Model model) {
+        model.addAttribute("names", "");
+        model.addAttribute("results", java.util.Collections.emptyList());
+        return "customers/search-by-names";
+    }
+
+    @PostMapping("/search-by-names")
+    public String searchByNamesSubmit(@RequestParam("names") String names, Model model) {
+        // split by lines, trim and ignore empty
+        String[] lines = names == null ? new String[0] : names.split("\\r?\\n");
+        java.util.Set<com.example.customerservice.model.Customer> found = new java.util.LinkedHashSet<>();
+        for (String line : lines) {
+            String token = line == null ? "" : line.trim();
+            if (token.isEmpty())
+                continue;
+            java.util.List<com.example.customerservice.model.Customer> part = orderService
+                    .findDistinctCustomersByNameContaining(token);
+            if (part != null)
+                found.addAll(part);
+        }
+
+        java.util.List<CustomerSearchResult> results = new java.util.ArrayList<>();
+        for (com.example.customerservice.model.Customer c : found) {
+            java.time.LocalDateTime uploadedAt = null;
+            if (c.getId() != null) {
+                uploadedAt = orderService.findLatestUploadTimestampForCustomer(c.getId());
+            }
+            results.add(new CustomerSearchResult(c.getName(), c.getPhones(), uploadedAt));
+        }
+
+        model.addAttribute("names", names);
+        model.addAttribute("results", results);
+        return "customers/search-by-names";
     }
 }

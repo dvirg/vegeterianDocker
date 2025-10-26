@@ -13,6 +13,8 @@ public class Order {
 
     private LocalDate date;
 
+    private java.time.LocalDateTime uploadedAt;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "customer_id")
     private Customer customer;
@@ -38,6 +40,14 @@ public class Order {
 
     public void setDate(LocalDate date) {
         this.date = date;
+    }
+
+    public java.time.LocalDateTime getUploadedAt() {
+        return uploadedAt;
+    }
+
+    public void setUploadedAt(java.time.LocalDateTime uploadedAt) {
+        this.uploadedAt = uploadedAt;
     }
 
     public Customer getCustomer() {

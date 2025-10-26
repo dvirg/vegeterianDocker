@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Search Customers by Names</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" />
+    <style>
+        body {
+            padding: 20px
+        }
+
+        textarea {
+            width: 100%;
+            height: 50vh;
+        }
+
+        /* Target the main textarea to be slightly narrower on large screens, centered, and with larger text for phone friendliness */
+        #names {
+            max-width: 720px;
+            margin-left: auto;
+            margin-right: auto;
+            display: block;
+            height: 50vh;
+            /* half the viewport height */
+            font-size: 1.4rem;
+            /* larger text */
+            padding: 0.75rem;
+        }
+
+        .results {
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- navbar removed for a cleaner, phone-friendly view -->
+    <div class="container">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <a class="btn btn-secondary btn-lg" th:href="@{/items/ariel}">Back to Ariel</a>
+            <h1 class="mb-0">Search customers</h1>
+            <div style="width:48px"></div>
+        </div>
+
+        <form th:action="@{/customers/search-by-names}" method="post">
+            <div class="mb-3">
+                <label class="form-label h5">Enter one or more name fragments (one per line)</label>
+                <textarea id="names" name="names" th:text="${names}" class="form-control"></textarea>
+            </div>
+            <div class="mb-3 d-flex gap-2">
+                <button class="btn btn-primary btn-lg flex-grow-1">Search</button>
+                <a class="btn btn-outline-secondary btn-lg" th:href="@{/items/ariel}">Back to Ariel</a>
+            </div>
+        </form>
+
+        <div class="results">
+            <h2 class="h4">Results</h2>
+            <div th:if="${results == null or #lists.isEmpty(results)}">
+                <p class="lead"><em>No customers found</em></p>
+            </div>
+            <div th:if="${results != null and !#lists.isEmpty(results)}">
+                <table class="table table-striped table-lg">
+                    <thead>
+                        <tr>
+                            <th class="h5">Name</th>
+                            <th class="h5">Phones</th>
+                            <th class="h5">Uploaded</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr th:each="c : ${results}">
+                            <td class="h4" th:text="${c.name}"></td>
+                            <td class="h5" th:text="${c.phones}"></td>
+                            <td class="h5" th:text="${c.uploadedAtFormatted}"></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>

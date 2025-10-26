@@ -15,6 +15,9 @@
 <body>
     <!-- <div th:insert="~{fragments/navbar :: mainNav}"></div> -->
     <div class="container">
+        <div class="mb-3">
+            <a class="btn btn-secondary" th:href="@{/customers/search-by-names}">Search Customers</a>
+        </div>
         <h1>Ariel view</h1>
         <div class="mb-3 d-flex align-items-center ariel-actions">
             <a class="btn btn-primary ariel-submit btn-lg" th:href="@{/leftovers}">Submit</a>

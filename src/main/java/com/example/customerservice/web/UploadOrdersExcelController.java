@@ -28,6 +28,8 @@ import java.io.FileOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.time.LocalDate;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Iterator;
@@ -130,6 +132,11 @@ public class UploadOrdersExcelController {
             java.util.List<Order> ordersToSave = new java.util.ArrayList<>();
             java.util.List<Customer> customersToSave = new java.util.ArrayList<>();
 
+            // determine upload timestamp from saved file metadata (fallback to now)
+            java.time.LocalDateTime uploadDateTime = java.time.LocalDateTime.ofInstant(
+                    Instant.ofEpochMilli(savedFile != null ? savedFile.lastModified() : System.currentTimeMillis()),
+                    ZoneId.systemDefault());
+
             for (int[] colSet : columns) {
                 Iterator<Row> rowIterator = sheet.iterator();
                 Customer currentCustomerEntity = null;
@@ -169,6 +176,7 @@ public class UploadOrdersExcelController {
                             Order newOrder = new Order();
                             newOrder.setCustomer(currentCustomerEntity);
                             newOrder.setDate(LocalDate.now());
+                            newOrder.setUploadedAt(uploadDateTime);
                             ordersToSave.add(newOrder);
                             currentOrderEntity = newOrder;
                         } else {

@@ -38,4 +38,13 @@ public class OrderService {
     public void deleteAllOrdersInBatch() {
         repository.deleteAllInBatch();
     }
+
+    public java.util.List<com.example.customerservice.model.Customer> findDistinctCustomersByNameContaining(
+            String name) {
+        return repository.findDistinctCustomersByCustomerNameContainingIgnoreCase(name);
+    }
+
+    public java.time.LocalDateTime findLatestUploadTimestampForCustomer(Long customerId) {
+        return repository.findLatestUploadTimestampByCustomerId(customerId);
+    }
 }
