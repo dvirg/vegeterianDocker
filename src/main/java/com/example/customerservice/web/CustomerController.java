@@ -117,10 +117,19 @@ public class CustomerController {
         }
 
         java.util.List<CustomerSearchResult> results = new java.util.ArrayList<>();
+        // only include customers whose latest upload is within the last 3 days
+        java.time.LocalDateTime cutoff = java.time.LocalDateTime.now().minusDays(3);
         for (com.example.customerservice.model.Customer c : found) {
             java.time.LocalDateTime uploadedAt = null;
             if (c.getId() != null) {
                 uploadedAt = orderService.findLatestUploadTimestampForCustomer(c.getId());
+            }
+            // skip if no upload timestamp or older than cutoff
+            if (uploadedAt == null) {
+                continue;
+            }
+            if (uploadedAt.isBefore(cutoff)) {
+                continue;
             }
             results.add(new CustomerSearchResult(c.getName(), c.getPhones(), uploadedAt));
         }
