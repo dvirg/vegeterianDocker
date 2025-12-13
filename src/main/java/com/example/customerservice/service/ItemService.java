@@ -116,7 +116,7 @@ public class ItemService {
                 if (renamed.contains("לימון") || renamed.contains("קולורבי")) {
                     rounded = Math.max(3, rounded - 1);
                 }
-                if (renamed.contains("בננה") || renamed.contains("תפו\"א")) {
+                if (renamed.contains("בננה") || renamed.contains("תפו\"א") || renamed.contains("תפוא")) {
                     rounded = rounded + 1;
                 }
                 kgItems.computeIfAbsent(rounded, k -> new ArrayList<>()).add(renamed);
@@ -167,10 +167,14 @@ public class ItemService {
         String[] split = clean.split("\\s+");
         String firstWord = split.length > 0 ? split[0] : "";
 
-        if (itemName.contains("תפוח עץ"))
+        if (itemName.contains("תפוח"))
             return "תפוח-עץ";
         if (itemName.contains("מלפפון בייבי"))
             return "מלפפון-בייבי";
+        if (itemName.contains("עלי בייבי"))
+            return "עלי-בייבי";
+        if (itemName.contains("גזר צבעוני"))
+            return "גזר-צבעוני";
         if (itemName.contains("צ'ילי"))
             return "צ'ילי";
         if (firstWord.contains("פלפל") && !itemName.contains("פלפלונים"))
