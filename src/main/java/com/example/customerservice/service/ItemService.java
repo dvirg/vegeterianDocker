@@ -127,7 +127,7 @@ public class ItemService {
                 if (renamed.contains("אגס")) {
                     rounded = (int) Math.floor(price / 1.5);
                     type = Item.ItemType.kg; // treat as kg
-                } else if (renamed.contains("עגבנית-שרי") || renamed.contains("גזר")) {
+                } else if (renamed.contains("עגבנית-שרי") || renamed.equals("גזר")) {
                     rounded = (int) Math.floor(price / 1.1);
                     type = Item.ItemType.kg; // treat as kg
                 }
