@@ -152,6 +152,8 @@ public class UploadOrdersExcelController {
                         String[] parts = firstCell.getStringCellValue().split("איסוף: לוד");
                         String currentCustomerName = parts.length > 0 ? parts[0].trim() : null;
                         String phone = parts.length > 1 ? parts[1].trim() : "";
+                        // Keep only last 6 digits for ID / privacy
+                        phone = maskToLast6(phone);
 
                         if (currentCustomerName != null && !currentCustomerName.isEmpty()) {
                             // find existing in parsed list first, then in DB
@@ -246,4 +248,12 @@ public class UploadOrdersExcelController {
     }
 
     // --- end helpers ---
+    private String maskToLast6(String phone) {
+        if (phone == null)
+            return "";
+        String digits = phone.replaceAll("\\D", "");
+        if (digits.length() <= 6)
+            return digits;
+        return digits.substring(digits.length() - 6);
+    }
 }

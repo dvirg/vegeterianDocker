@@ -1,0 +1,50 @@
+name: Deploy (build + SCP)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn -B clean package --file pom.xml
+
+      - name: Upload JAR to remote server via SCP
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          source: "target/*.jar"
+          target: ${{ secrets.DEPLOY_PATH }}
+
+      - name: Restart remote service (systemd)
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          port: ${{ secrets.DEPLOY_PORT }}
+          script: |
+            # Adjust the service name/path if you use a different service file
+            if sudo systemctl is-active --quiet customer-service; then
+              sudo systemctl restart customer-service
+            else
+              # If no systemd service, try to run via nohup (example)
+              pkill -f customer-service-0.0.1-SNAPSHOT.jar || true
+              nohup java -jar {{DEPLOY_PATH}}/customer-service-0.0.1-SNAPSHOT.jar > /dev/null 2>&1 &
+            fi
+            sudo systemctl status customer-service --no-pager || true

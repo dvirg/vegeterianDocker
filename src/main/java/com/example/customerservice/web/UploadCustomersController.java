@@ -54,8 +54,8 @@ public class UploadCustomersController {
                     continue;
                 String name = parts[0].trim();
                 String phone = parts[1].trim();
-                if (!phone.startsWith("0"))
-                    phone = "0" + phone;
+                // Keep only last 6 digits for ID / privacy
+                phone = maskToLast6(phone);
                 String address = parts.length > 2 ? parts[2].trim() : "";
                 Customer customer = new Customer();
                 customer.setName(name);
@@ -71,6 +71,16 @@ public class UploadCustomersController {
             return "redirect:/upload-customers-csv";
         }
         return "redirect:/upload-customers-csv/preview";
+    }
+
+    private String maskToLast6(String phone) {
+        if (phone == null)
+            return "";
+        // remove non-digit characters
+        String digits = phone.replaceAll("\\D", "");
+        if (digits.length() <= 6)
+            return digits;
+        return digits.substring(digits.length() - 6);
     }
 
     @GetMapping("/preview")
