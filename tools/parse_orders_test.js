@@ -36,7 +36,7 @@ function parseFile(filepath) {
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
     const orders = [];
-    const columnSets = [[0,1,2],[4,5,6]];
+    const columnSets = [[0, 1, 2], [4, 5, 6]];
 
     for (const colSet of columnSets) {
         let current = null;
@@ -78,7 +78,7 @@ function parseFile(filepath) {
     return orders;
 }
 
-(function main(){
+(function main() {
     const filepath = path.resolve(__dirname, '..', 'uploaded_excels', 'orders_list_2026-03-29 (2).xlsx');
     console.error('Parsing', filepath);
     const orders = parseFile(filepath);
@@ -87,7 +87,7 @@ function parseFile(filepath) {
     for (let i = 0; i < Math.min(6, orders.length); i++) {
         const o = orders[i];
         console.log(`Order[${i}] ${o.customerName} | phoneMasked=${o.phoneMasked} | items=${o.items.length}`);
-        for (const it of o.items.slice(0,6)) {
+        for (const it of o.items.slice(0, 6)) {
             console.log('  -', it.name, '| qty=', it.qty, '| price=', it.price, '| amountNum=', it.amountNum, '| unitPrice=', it.unitPrice, '| type=', it.type);
         }
     }
@@ -109,9 +109,9 @@ function parseFile(filepath) {
         }
     }
     console.error('Unique item names:', itemsMap.size);
-    const keys = Array.from(itemsMap.keys()).slice(0,30);
+    const keys = Array.from(itemsMap.keys()).slice(0, 30);
     for (const k of keys) {
         const v = itemsMap.get(k);
-        console.log(`ITEM ${k} | type=${v.type} | priceMin=${isFinite(v.priceMin)?v.priceMin:v.priceMin} | examples=${Array.from(v.originals).slice(0,3).join('; ')}`);
+        console.log(`ITEM ${k} | type=${v.type} | priceMin=${isFinite(v.priceMin) ? v.priceMin : v.priceMin} | examples=${Array.from(v.originals).slice(0, 3).join('; ')}`);
     }
 })();
