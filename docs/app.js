@@ -260,7 +260,8 @@ function renderLeftovers() {
         const table = document.createElement('table');
         table.className = 'table';
         const tbody = document.createElement('tbody');
-        for (const [renamed, info] of itemsMap.entries()) {
+        const sortedItems = Array.from(itemsMap.entries()).sort((a, b) => a[0].localeCompare(b[0], 'he'));
+        for (const [renamed, info] of sortedItems) {
             const tr = document.createElement('tr');
             const nameTd = document.createElement('td');
             // show parsed qty/amount and computed unit price (if available) under the large name for debugging
@@ -408,13 +409,13 @@ function renderLeftovers() {
             sb += "המחירים לק\"ג:\n";
             const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
             for (const k of sortedKgKeys) {
-                sb += kgItems.get(k).join(' / ') + ' ' + k + '\n';
+                sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
             }
             sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
             sb += '\n' + "המחירים ליחידה:\n";
             const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
             for (const k of sortedUnitKeys) {
-                sb += unitItems.get(k).join(' / ') + ' ' + k + '\n';
+                sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
             }
 
             // Show result pane
