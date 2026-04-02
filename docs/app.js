@@ -72,9 +72,31 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
     // Note: the sheet contains two sets of columns (columns 0..2 and 4..6). We iterate both sets
     // and treat each as an independent list (mirrors UploadOrdersExcelController.java behavior).
     const orders = [];
-    const columnSets = [[0, 1, 2], [4, 5, 6]];
 
-    for (const colSet of columnSets) {
+    // Dynamically detect column-start indices that contain customer markers (איסוף: לוד).
+    // Some XLSX exports place the second set at different column indexes; this scans the sheet
+    // for any column that contains the customer marker and treats that as the start of a column set.
+    const detectedStarts = new Set();
+    for (let r = 0; r < rows.length; r++) {
+        const row = rows[r];
+        if (!row) continue;
+        for (let c = 0; c < row.length; c++) {
+            const cell = sanitizeCellRaw(row[c] || '');
+            if (cell.includes('איסוף: לוד')) detectedStarts.add(c);
+        }
+    }
+    // If no starts detected, fall back to the common layout (0 and 4)
+    if (detectedStarts.size === 0) {
+        detectedStarts.add(0);
+        detectedStarts.add(4);
+    }
+
+    const columnStarts = Array.from(detectedStarts).sort((a, b) => a - b);
+
+    for (const start of columnStarts) {
+        const colSet = [start, start + 1, start + 2];
+        let current = null;
+        for (let r = 0; r < rows.length; r++) {
         let current = null;
         for (let r = 0; r < rows.length; r++) {
             const row = rows[r];
@@ -133,10 +155,10 @@ function renderLeftovers() {
     const itemsMap = new Map();
     function renameItemJS(itemName) {
         if (!itemName) return null;
-    // Ignore items explicitly named or starting with 'תוספות' or 'סך' (total rows)
-    const trimmed = itemName.trim();
-    if (trimmed.startsWith('תוספות')) return null;
-    if (trimmed.startsWith('סך')) return null;
+        // Ignore items explicitly named or starting with 'תוספות' or 'סך' (total rows)
+        const trimmed = itemName.trim();
+        if (trimmed.startsWith('תוספות')) return null;
+        if (trimmed.startsWith('סך')) return null;
         const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
         const split = n.trim().split(/\s+/);
         const firstWord = split.length > 0 ? split[0] : '';
