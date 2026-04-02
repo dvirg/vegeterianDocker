@@ -122,6 +122,12 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
                     // parse numeric amount and price
                     const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                     const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                    
+                    // ignore items that have no amount or price (like category headers)
+                    if (isNaN(amountNum) || isNaN(priceNum)) {
+                        continue;
+                    }
+
                     let unitPrice = NaN;
                     if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
                         // total price divided by amount -> unit price
