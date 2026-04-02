@@ -35,6 +35,10 @@ function maskToLast6(phone) {
 // Customers CSV upload removed; no handler needed
 
 document.getElementById('parseOrdersBtn').addEventListener('click', async () => {
+    // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
+    state.itemsMeta = {};
+    saveItemsMeta();
+
     const f = document.getElementById('ordersFile').files[0];
     if (!f) return alert('Select orders XLSX file');
     const data = await f.arrayBuffer();
@@ -481,5 +485,6 @@ document.getElementById('searchBackBtn').addEventListener('click', () => {
 
 function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-// initial render
+// load any saved item meta from localStorage and initial render
+loadItemsMeta();
 renderLeftovers();
