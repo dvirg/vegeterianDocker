@@ -2,9 +2,29 @@
 // Uses SheetJS (XLSX) and PapaParse (CSV) via CDN.
 
 const state = {
-    customers: [], // { name, rawPhone, phoneMasked, address }
     orders: [], // { customerName, rawPhone, phoneMasked, items: [{name, qty, price}] }
+    // persistent per-item overrides created by the UI: { [renamed]: { available?: boolean, type?: 'kg'|'unit', priceMin?: number } }
+    itemsMeta: {}
 };
+
+function loadItemsMeta() {
+    try {
+        const raw = localStorage.getItem('veg_items_meta');
+        if (raw) state.itemsMeta = JSON.parse(raw);
+        else state.itemsMeta = {};
+    } catch (e) {
+        console.warn('Failed to load itemsMeta from localStorage', e);
+        state.itemsMeta = {};
+    }
+}
+
+function saveItemsMeta() {
+    try {
+        localStorage.setItem('veg_items_meta', JSON.stringify(state.itemsMeta || {}));
+    } catch (e) {
+        console.warn('Failed to save itemsMeta to localStorage', e);
+    }
+}
 
 function maskToLast6(phone) {
     if (!phone) return '';
@@ -12,30 +32,7 @@ function maskToLast6(phone) {
     return digits.length <= 6 ? digits : digits.slice(-6);
 }
 
-document.getElementById('parseCustomersBtn').addEventListener('click', async () => {
-    const f = document.getElementById('customersFile').files[0];
-    if (!f) return alert('Select customers CSV file');
-    Papa.parse(f, {
-        header: false,
-        skipEmptyLines: true,
-        complete: (res) => {
-            const rows = res.data;
-            // assume first row is header; start from second row
-            const parsed = [];
-            for (let i = 1; i < rows.length; i++) {
-                const parts = rows[i];
-                const name = (parts[0] || '').trim();
-                const rawPhone = (parts[1] || '').trim();
-                const address = (parts[2] || '').trim();
-                const phoneMasked = maskToLast6(rawPhone);
-                parsed.push({ name, rawPhone, phoneMasked, address });
-            }
-            state.customers = parsed;
-            renderLeftovers();
-            alert('Customers parsed: ' + parsed.length);
-        }
-    });
-});
+// Customers CSV upload removed; no handler needed
 
 document.getElementById('parseOrdersBtn').addEventListener('click', async () => {
     const f = document.getElementById('ordersFile').files[0];
@@ -77,7 +74,7 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
 function renderLeftovers() {
     const container = document.getElementById('leftoversList');
     container.innerHTML = '';
-    if (state.orders.length === 0 && state.customers.length === 0) {
+    if (state.orders.length === 0) {
         container.innerHTML = '<p class="text-muted">No data parsed yet. Upload files to start.</p>';
         return;
     }
@@ -138,6 +135,17 @@ function renderLeftovers() {
         }
     }
 
+    // Apply persistent overrides from state.itemsMeta (if user toggled type/availability)
+    for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
+        const existing = itemsMap.get(name);
+        if (existing) {
+            if (typeof meta.available === 'boolean') existing.available = meta.available;
+            if (meta.type) existing.type = meta.type;
+            if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
+            itemsMap.set(name, existing);
+        }
+    }
+
     // If no items derived from orders, fallback to listing unique product names from orders in simple list
     if (itemsMap.size === 0) {
         // show orders list as before
@@ -170,7 +178,11 @@ function renderLeftovers() {
             availTd.style = 'width:150px;';
             const checked = info.available ? 'checked' : '';
             const id = 'avail_' + encodeURIComponent(renamed);
-            availTd.innerHTML = `<div class="form-check form-switch" style="display:flex;justify-content:flex-end;align-items:center;"><input class="form-check-input avail-toggle" type="checkbox" role="switch" id="${id}" data-name="${encodeURIComponent(renamed)}" ${checked}></div>`;
+            const typeLabel = (info.type || 'unit');
+            availTd.innerHTML = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:0.5rem;">
+                    <div class="form-check form-switch"><input class="form-check-input avail-toggle" type="checkbox" role="switch" id="${id}" data-name="${encodeURIComponent(renamed)}" ${checked}></div>
+                    <span class="badge bg-secondary type-badge" data-name="${encodeURIComponent(renamed)}" data-type="${typeLabel}">${typeLabel.toUpperCase()}</span>
+                </div>`;
             tr.appendChild(nameTd);
             tr.appendChild(availTd);
             tbody.appendChild(tr);
@@ -178,26 +190,58 @@ function renderLeftovers() {
         table.appendChild(tbody);
         container.appendChild(table);
 
-        // attach toggle handlers to update itemsMap availability
+        // attach toggle handlers to update itemsMeta availability
         Array.from(container.getElementsByClassName('avail-toggle')).forEach(checkbox => {
             checkbox.addEventListener('change', (e) => {
                 const nm = decodeURIComponent(checkbox.getAttribute('data-name'));
-                const itm = itemsMap.get(nm);
-                if (itm) itm.available = checkbox.checked;
+                const checked = checkbox.checked;
+                state.itemsMeta[nm] = state.itemsMeta[nm] || {};
+                state.itemsMeta[nm].available = checked;
+                saveItemsMeta();
+            });
+        });
+
+        // attach type-badge handlers to toggle kg/unit and persist in itemsMeta
+        Array.from(container.getElementsByClassName('type-badge')).forEach(b => {
+            b.addEventListener('click', (e) => {
+                const nm = decodeURIComponent(b.getAttribute('data-name'));
+                const curr = b.getAttribute('data-type');
+                const next = curr === 'kg' ? 'unit' : 'kg';
+                b.setAttribute('data-type', next);
+                b.innerText = next.toUpperCase();
+                // update meta
+                state.itemsMeta[nm] = state.itemsMeta[nm] || {};
+                state.itemsMeta[nm].type = next;
+                saveItemsMeta();
             });
         });
 
         // Wire action buttons
         document.getElementById('setAllAvailable').addEventListener('click', () => {
-            for (const v of itemsMap.values()) v.available = true;
+            for (const [name] of itemsMap.entries()) {
+                state.itemsMeta[name] = state.itemsMeta[name] || {};
+                state.itemsMeta[name].available = true;
+            }
+            saveItemsMeta();
             renderLeftovers();
         });
         document.getElementById('setAllUnavailable').addEventListener('click', () => {
-            for (const v of itemsMap.values()) v.available = false;
+            for (const [name] of itemsMap.entries()) {
+                state.itemsMeta[name] = state.itemsMeta[name] || {};
+                state.itemsMeta[name].available = false;
+            }
+            saveItemsMeta();
             renderLeftovers();
         });
         document.getElementById('setAllKgAvailable').addEventListener('click', () => {
-            for (const v of itemsMap.values()) if (v.type === 'kg') v.available = true;
+            for (const [name, v] of itemsMap.entries()) {
+                const type = (state.itemsMeta[name] && state.itemsMeta[name].type) || v.type;
+                if (type === 'kg') {
+                    state.itemsMeta[name] = state.itemsMeta[name] || {};
+                    state.itemsMeta[name].available = true;
+                }
+            }
+            saveItemsMeta();
             renderLeftovers();
         });
 
@@ -363,39 +407,47 @@ document.getElementById('searchBtn').addEventListener('click', () => {
     const fragments = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.toLowerCase());
     const container = document.getElementById('searchResults');
     container.innerHTML = '';
+    // If no fragments provided, show all customers parsed from the uploaded orders XLSX
     if (fragments.length === 0) {
-        container.innerHTML = '<p class="text-muted">Enter one or more name fragments (one per line)</p>';
-        document.getElementById('leftoversPane').classList.add('d-none');
-        document.getElementById('textPane').classList.add('d-none');
-        document.getElementById('searchResultsPane').classList.remove('d-none');
-        return;
-    }
-
-    // Use a map to avoid duplicate names
-    const resultsMap = new Map();
-
-    // Search parsed customers (CSV) first
-    for (const c of state.customers) {
-        const nameLower = (c.name || '').toLowerCase();
-        for (const f of fragments) {
-            if (nameLower.includes(f)) {
-                const phones = c.phoneMasked || c.rawPhone || '';
-                resultsMap.set(c.name || ('#' + resultsMap.size), { name: c.name, phones: phones, uploaded: 'CSV' });
-                break;
+        // gather unique customer names from orders
+        for (const o of state.orders) {
+            const name = o.customerName || '';
+            if (!name) continue;
+            if (!resultsMap.has(name)) {
+                const phones = o.phoneMasked || o.rawPhone || '';
+                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
             }
+        }
+        if (resultsMap.size === 0) {
+            container.innerHTML = '<p class="text-muted">No customers found in uploaded orders</p>';
+            document.getElementById('leftoversPane').classList.add('d-none');
+            document.getElementById('textPane').classList.add('d-none');
+            document.getElementById('searchResultsPane').classList.remove('d-none');
+            return;
         }
     }
 
-    // Then search orders (XLSX) and add any names not already present
+    // Use a map to avoid duplicate names; search orders only
+    const resultsMap = new Map();
     for (const o of state.orders) {
-        const nameLower = (o.customerName || '').toLowerCase();
-        for (const f of fragments) {
-            if (nameLower.includes(f)) {
-                if (!resultsMap.has(o.customerName)) {
-                    const phones = o.phoneMasked || o.rawPhone || '';
-                    resultsMap.set(o.customerName || ('#' + resultsMap.size), { name: o.customerName, phones: phones, uploaded: 'Orders' });
+        const name = o.customerName || '';
+        if (!name) continue;
+        const nameLower = name.toLowerCase();
+        // if fragments provided, match them; otherwise (handled above) resultsMap already has all names
+        if (fragments.length > 0) {
+            for (const f of fragments) {
+                if (nameLower.includes(f)) {
+                    if (!resultsMap.has(name)) {
+                        const phones = o.phoneMasked || o.rawPhone || '';
+                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
+                    }
+                    break;
                 }
-                break;
+            }
+        } else {
+            if (!resultsMap.has(name)) {
+                const phones = o.phoneMasked || o.rawPhone || '';
+                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
             }
         }
     }
