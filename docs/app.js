@@ -34,6 +34,28 @@ function maskToLast6(phone) {
 
 // Customers CSV upload removed; no handler needed
 
+// Sanitizers to normalize cell text from SheetJS and detect empty column-sets
+function sanitizeCellRaw(v) {
+    if (v === null || v === undefined) return '';
+    let s = String(v);
+    // normalize non-breaking spaces and RTL markers, normalize curly quotes to straight
+    s = s.replace(/\u00A0/g, ' ').replace(/\u200F/g, '').replace(/[\u2018\u2019\u201C\u201D]/g, "'");
+    // replace multiple whitespace with single space and trim
+    s = s.replace(/\s+/g, ' ').trim();
+    // strip surrounding double-quotes
+    if (s === '""') return '';
+    if (s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1).trim();
+    return s;
+}
+
+function isEmptyColumnSet(row, colSet) {
+    if (!row) return true;
+    const a = sanitizeCellRaw(row[colSet[0]] || '');
+    const b = sanitizeCellRaw(row[colSet[1]] || '');
+    const c = sanitizeCellRaw(row[colSet[2]] || '');
+    return !(a || b || c);
+}
+
 document.getElementById('parseOrdersBtn').addEventListener('click', async () => {
     // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
     state.itemsMeta = {};
@@ -47,42 +69,50 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
     const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
 
     // Parse similar to server logic: detect customer rows by containing 'איסוף: לוד'
+    // Note: the sheet contains two sets of columns (columns 0..2 and 4..6). We iterate both sets
+    // and treat each as an independent list (mirrors UploadOrdersExcelController.java behavior).
     const orders = [];
-    let current = null;
-    for (let r = 0; r < rows.length; r++) {
-        const row = rows[r];
-        if (!row || row.length === 0) continue;
-        const first = String(row[0] || '');
-        if (first.includes('איסוף: לוד')) {
-            const parts = first.split('איסוף: לוד');
-            const name = (parts[0] || '').trim();
-            const rawPhone = (parts[1] || '').trim();
-            const phoneMasked = maskToLast6(rawPhone);
-            current = { customerName: name, rawPhone, phoneMasked, items: [] };
-            orders.push(current);
-        } else if (current) {
-            // product rows: attempt to read product name and qty from first 3 columns
-            const product = String(row[0] || '').trim();
-            const quantity = String(row[1] || '').trim();
-            const price = String(row[2] || '').trim();
-            if (product && product !== 'מוצר' && product !== '"מוצר"') {
-                // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
-                const qtyText = quantity || '';
-                const isKg = /ק.?ג/.test(qtyText);
-                const isUnit = /יח/.test(qtyText);
-                // parse numeric amount and price
-                const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-                const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-                let unitPrice = NaN;
-                if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
-                    // total price divided by amount -> unit price
-                    unitPrice = priceNum / amountNum;
-                } else {
-                    // fallback: try to parse price as unit price directly
-                    unitPrice = isNaN(priceNum) ? NaN : priceNum;
+    const columnSets = [[0, 1, 2], [4, 5, 6]];
+
+    for (const colSet of columnSets) {
+        let current = null;
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r];
+            if (!row || row.length === 0) continue;
+            // skip fully empty column-sets (mimics clearing/invisible columns on server)
+            if (isEmptyColumnSet(row, colSet)) continue;
+            const first = sanitizeCellRaw(row[colSet[0]] || '');
+            if (first.includes('איסוף: לוד')) {
+                const parts = first.split('איסוף: לוד');
+                const name = (parts[0] || '').trim();
+                const rawPhone = (parts[1] || '').trim();
+                const phoneMasked = maskToLast6(rawPhone);
+                current = { customerName: name, rawPhone, phoneMasked, items: [] };
+                orders.push(current);
+            } else if (current) {
+                // product rows: attempt to read product name and qty from the current column set
+                const product = sanitizeCellRaw(row[colSet[0]] || '');
+                const quantity = sanitizeCellRaw(row[colSet[1]] || '');
+                const price = sanitizeCellRaw(row[colSet[2]] || '');
+                if (product && product !== 'מוצר') {
+                    // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
+                    const qtyText = quantity || '';
+                    const isKg = /ק.?ג/.test(qtyText);
+                    const isUnit = /יח/.test(qtyText);
+                    // parse numeric amount and price
+                    const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                    const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                    let unitPrice = NaN;
+                    if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
+                        // total price divided by amount -> unit price
+                        unitPrice = priceNum / amountNum;
+                    } else {
+                        // fallback: try to parse price as unit price directly
+                        unitPrice = isNaN(priceNum) ? NaN : priceNum;
+                    }
+                    const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
+                    current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
                 }
-                const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
-                current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
             }
         }
     }
@@ -103,6 +133,8 @@ function renderLeftovers() {
     const itemsMap = new Map();
     function renameItemJS(itemName) {
         if (!itemName) return null;
+        // Ignore items explicitly named or containing 'תוספות'
+        if (itemName.includes('תוספות')) return null;
         const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
         const split = n.trim().split(/\s+/);
         const firstWord = split.length > 0 ? split[0] : '';
