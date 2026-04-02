@@ -66,7 +66,23 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
             const quantity = String(row[1] || '').trim();
             const price = String(row[2] || '').trim();
             if (product && product !== 'מוצר' && product !== '"מוצר"') {
-                current.items.push({ name: product, qty: quantity, price: price });
+                // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
+                const qtyText = quantity || '';
+                const isKg = /ק.?ג/.test(qtyText);
+                const isUnit = /יח/.test(qtyText);
+                // parse numeric amount and price
+                const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                let unitPrice = NaN;
+                if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
+                    // total price divided by amount -> unit price
+                    unitPrice = priceNum / amountNum;
+                } else {
+                    // fallback: try to parse price as unit price directly
+                    unitPrice = isNaN(priceNum) ? NaN : priceNum;
+                }
+                const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
+                current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
             }
         }
     }
@@ -124,16 +140,22 @@ function renderLeftovers() {
             const original = it.name || '';
             const renamed = renameItemJS(original);
             if (!renamed) continue;
-            const price = parseFloatSafe(it.price);
+            // prefer unitPrice parsed from the line (totalPrice/amount) if available
+            const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
             const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
             existing.originals.add(original);
             if (!isNaN(price)) {
                 if (price < existing.priceMin) existing.priceMin = price;
             }
             // heuristic: certain names likely kg
-            const lower = renamed.toLowerCase();
-            if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
-                existing.type = 'kg';
+            // prefer explicit type from parsed item (amount column), otherwise fall back to heuristics
+            if (it.type) {
+                existing.type = it.type;
+            } else {
+                const lower = renamed.toLowerCase();
+                if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+                    existing.type = 'kg';
+                }
             }
             itemsMap.set(renamed, existing);
         }
