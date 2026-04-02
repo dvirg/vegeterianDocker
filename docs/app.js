@@ -133,8 +133,10 @@ function renderLeftovers() {
     const itemsMap = new Map();
     function renameItemJS(itemName) {
         if (!itemName) return null;
-        // Ignore items explicitly named or containing 'תוספות'
-        if (itemName.includes('תוספות')) return null;
+    // Ignore items explicitly named or starting with 'תוספות' or 'סך' (total rows)
+    const trimmed = itemName.trim();
+    if (trimmed.startsWith('תוספות')) return null;
+    if (trimmed.startsWith('סך')) return null;
         const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
         const split = n.trim().split(/\s+/);
         const firstWord = split.length > 0 ? split[0] : '';
