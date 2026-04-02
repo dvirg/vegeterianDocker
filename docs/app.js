@@ -147,6 +147,16 @@ function renderLeftovers() {
             if (!isNaN(price)) {
                 if (price < existing.priceMin) existing.priceMin = price;
             }
+            // keep one example amount/unitPrice/qtyText for display purposes
+            if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
+                existing.sampleUnitPrice = it.unitPrice;
+            }
+            if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
+                existing.sampleAmount = it.amountNum;
+            }
+            if (!existing.sampleQtyText && it.qty) {
+                existing.sampleQtyText = it.qty;
+            }
             // heuristic: certain names likely kg
             // prefer explicit type from parsed item (amount column), otherwise fall back to heuristics
             if (it.type) {
@@ -199,7 +209,16 @@ function renderLeftovers() {
         for (const [renamed, info] of itemsMap.entries()) {
             const tr = document.createElement('tr');
             const nameTd = document.createElement('td');
-            nameTd.innerHTML = `<div dir="rtl" class="ariel-name text-end">${escapeHtml(renamed)}</div>`;
+            // show parsed qty/amount and computed unit price (if available) under the large name for debugging
+            const sampleQty = info.sampleQtyText ? escapeHtml(info.sampleQtyText) : '';
+            const sampleAmt = (typeof info.sampleAmount === 'number' && info.sampleAmount != null) ? info.sampleAmount : null;
+            const sampleUnit = (typeof info.sampleUnitPrice === 'number' && info.sampleUnitPrice != null) ? info.sampleUnitPrice : null;
+            const details = [];
+            if (sampleQty) details.push(sampleQty);
+            if (sampleAmt !== null) details.push('amt:' + sampleAmt);
+            if (sampleUnit !== null) details.push('u:' + sampleUnit.toFixed(2));
+            const detailsHtml = details.length ? `<div class="small text-muted" style="direction:rtl;text-align:right">${escapeHtml(details.join(' • '))}</div>` : '';
+            nameTd.innerHTML = `<div dir="rtl" class="ariel-name text-end">${escapeHtml(renamed)}</div>${detailsHtml}`;
             const availTd = document.createElement('td');
             availTd.style = 'width:150px;';
             const checked = info.available ? 'checked' : '';
