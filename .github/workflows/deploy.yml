@@ -1,8 +1,6 @@
 name: Deploy (build + SCP)
 
 on:
-  push:
-    branches: [ main ]
   workflow_dispatch:
 
 jobs:
