@@ -1,6 +1,10 @@
 // Simple client-side parser and UI for orders/customers.
 // Uses SheetJS (XLSX) and PapaParse (CSV) via CDN.
 
+// Telegram credentials (hardcoded)
+const TELEGRAM_TOKEN = '2070956586:AAH78qAvi0PV0O90_KHIzCtBrvP_CHw5KUk';
+const TELEGRAM_CHAT_ID = '740647763';
+
 const state = {
     orders: [], // { customerName, rawPhone, phoneMasked, items: [{name, qty, price}] }
     // persistent per-item overrides created by the UI: { [renamed]: { available?: boolean, type?: 'kg'|'unit', priceMin?: number } }
@@ -442,6 +446,11 @@ function renderLeftovers() {
             document.getElementById('leftoversTextarea').value = sb;
             document.getElementById('leftoversPane').classList.add('d-none');
             document.getElementById('leftoversResultPane').classList.remove('d-none');
+
+            // Send message to Telegram in background
+            if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
+                sendTelegramMessage(sb);
+            }
         });
 
         // Back to Ariel button on result pane
@@ -461,7 +470,62 @@ function renderLeftovers() {
                 window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
             } catch (e) { alert('Copy failed: ' + e); }
         });
+
+        // Send Telegram button: send the price list to Telegram
+        document.getElementById('sendTelegramBtn').addEventListener('click', async () => {
+            const ta = document.getElementById('leftoversTextarea');
+            const message = ta.value;
+            const btn = document.getElementById('sendTelegramBtn');
+            const originalText = btn.innerText;
+            btn.disabled = true;
+            btn.innerText = 'Sending...';
+
+            try {
+                const response = await fetch('/api/telegram/send', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ message: message })
+                });
+
+                if (response.ok) {
+                    btn.innerText = 'Sent!';
+                    setTimeout(() => {
+                        btn.innerText = originalText;
+                        btn.disabled = false;
+                    }, 1400);
+                } else {
+                    const errorText = await response.text();
+                    alert('Failed to send: ' + errorText);
+                    btn.innerText = originalText;
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                alert('Error sending message: ' + e.message);
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
+        });
     }
+}
+
+function sendTelegramMessage(message) {
+    // Send message to Telegram using client-side API call
+    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(message)}`;
+
+    // Use fetch silently in background, don't block UI
+    fetch(url, { method: 'GET' })
+        .then(response => {
+            if (response.ok) {
+                console.log('Telegram message sent successfully');
+            } else {
+                console.warn('Failed to send Telegram message:', response.statusText);
+            }
+        })
+        .catch(error => {
+            console.warn('Error sending Telegram message:', error);
+        });
 }
 
 function gotoTextPage(selected = null) {
