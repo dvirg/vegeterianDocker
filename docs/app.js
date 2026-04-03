@@ -69,13 +69,13 @@ function isEmptyColumnSet(row, colSet) {
     return !(a || b || c);
 }
 
-document.getElementById('parseOrdersBtn').addEventListener('click', async () => {
+document.getElementById('ordersFile').addEventListener('change', async (e) => {
     // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
     state.itemsMeta = {};
     saveItemsMeta();
 
-    const f = document.getElementById('ordersFile').files[0];
-    if (!f) return alert('Select orders XLSX file');
+    const f = e.target.files[0];
+    if (!f) return; // Do nothing if file dialog was cancelled
     const data = await f.arrayBuffer();
     const wb = XLSX.read(data, { type: 'array' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
