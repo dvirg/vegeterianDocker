@@ -471,42 +471,7 @@ function renderLeftovers() {
             } catch (e) { alert('Copy failed: ' + e); }
         });
 
-        // Send Telegram button: send the price list to Telegram
-        document.getElementById('sendTelegramBtn').addEventListener('click', async () => {
-            const ta = document.getElementById('leftoversTextarea');
-            const message = ta.value;
-            const btn = document.getElementById('sendTelegramBtn');
-            const originalText = btn.innerText;
-            btn.disabled = true;
-            btn.innerText = 'Sending...';
 
-            try {
-                const response = await fetch('/api/telegram/send', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ message: message })
-                });
-
-                if (response.ok) {
-                    btn.innerText = 'Sent!';
-                    setTimeout(() => {
-                        btn.innerText = originalText;
-                        btn.disabled = false;
-                    }, 1400);
-                } else {
-                    const errorText = await response.text();
-                    alert('Failed to send: ' + errorText);
-                    btn.innerText = originalText;
-                    btn.disabled = false;
-                }
-            } catch (e) {
-                alert('Error sending message: ' + e.message);
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
-        });
     }
 }
 
@@ -579,11 +544,7 @@ function gotoTextPage(selected = null) {
     }
 }
 
-document.getElementById('gotoLeftovers').addEventListener('click', () => {
-    document.getElementById('leftoversPane').classList.remove('d-none');
-    document.getElementById('textPane').classList.add('d-none');
-    document.getElementById('searchResultsPane').classList.add('d-none');
-});
+
 function showSearchTextPage(selected) {
     // selected = [{name, phone}]
     document.getElementById('textPane').classList.remove('d-none');
