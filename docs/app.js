@@ -9,12 +9,17 @@ const state = {
 
 function loadItemsMeta() {
     try {
-        const raw = localStorage.getItem('veg_items_meta');
-        if (raw) state.itemsMeta = JSON.parse(raw);
+        const rawMeta = localStorage.getItem('veg_items_meta');
+        if (rawMeta) state.itemsMeta = JSON.parse(rawMeta);
         else state.itemsMeta = {};
+
+        const rawOrders = localStorage.getItem('veg_orders_data');
+        if (rawOrders) state.orders = JSON.parse(rawOrders);
+        else state.orders = [];
     } catch (e) {
-        console.warn('Failed to load itemsMeta from localStorage', e);
+        console.warn('Failed to load data from localStorage', e);
         state.itemsMeta = {};
+        state.orders = [];
     }
 }
 
@@ -23,6 +28,14 @@ function saveItemsMeta() {
         localStorage.setItem('veg_items_meta', JSON.stringify(state.itemsMeta || {}));
     } catch (e) {
         console.warn('Failed to save itemsMeta to localStorage', e);
+    }
+}
+
+function saveOrdersData() {
+    try {
+        localStorage.setItem('veg_orders_data', JSON.stringify(state.orders || []));
+    } catch (e) {
+        console.warn('Failed to save orders data to localStorage', e);
     }
 }
 
@@ -143,6 +156,7 @@ document.getElementById('parseOrdersBtn').addEventListener('click', async () => 
         }
     }
     state.orders = orders;
+    saveOrdersData();
     renderLeftovers();
     alert('Orders parsed: ' + orders.length);
 });
