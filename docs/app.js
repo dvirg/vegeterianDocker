@@ -135,7 +135,7 @@ document.getElementById('ordersFile').addEventListener('change', async (e) => {
                     // parse numeric amount and price
                     const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                     const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-                    
+
                     // ignore items that have no amount or price (like category headers)
                     if (isNaN(amountNum) || isNaN(priceNum)) {
                         continue;
@@ -520,7 +520,54 @@ document.getElementById('gotoLeftovers').addEventListener('click', () => {
     document.getElementById('textPane').classList.add('d-none');
     document.getElementById('searchResultsPane').classList.add('d-none');
 });
-document.getElementById('gotoText').addEventListener('click', () => gotoTextPage());
+function showSearchTextPage(selected) {
+    // selected = [{name, phone}]
+    document.getElementById('textPane').classList.remove('d-none');
+    const container = document.getElementById('textsList');
+    container.innerHTML = '';
+
+    const list = selected || [];
+    for (const s of list) {
+        const div = document.createElement('div');
+        div.className = 'card mb-2';
+        const message = 'היי, האם אתם מעוניינים שנדאג לכם לאריזה?\nhttps://links.payboxapp.com/S6BPN7Ap4Yb';
+        div.innerHTML = `
+      <div class="card-body">
+        <h5>${escapeHtml(s.name)}</h5>
+        <p><strong>Phone (raw):</strong> ${escapeHtml(s.phone || '')}</p>
+        <label>Message</label>
+        <textarea class="form-control msg-text mb-2">${escapeHtml(message)}</textarea>
+        <div>
+          <button class="btn btn-sm btn-primary open-whatsapp">Open WhatsApp</button>
+          <button class="btn btn-sm btn-outline-secondary copy-msg">Copy message</button>
+        </div>
+      </div>
+    `;
+        container.appendChild(div);
+        const openBtn = div.getElementsByClassName('open-whatsapp')[0];
+        const copyBtn = div.getElementsByClassName('copy-msg')[0];
+        const ta = div.getElementsByClassName('msg-text')[0];
+        openBtn.addEventListener('click', () => {
+            // Use raw phone if available; remove non-digits
+            const digits = (s.phone || '').replace(/\D/g, '');
+            const text = ta.value;
+            const encoded = encodeURIComponent(text);
+            // If digits length looks like phone, use wa.me; otherwise open web.whatsapp with text only
+            if (digits.length >= 6) {
+                // wa.me requires international format; user may need to adjust
+                const url = `https://wa.me/${digits}?text=${encoded}`;
+                window.open(url, '_blank');
+            } else {
+                // open WhatsApp web send text
+                const url = `https://web.whatsapp.com/send?text=${encoded}`;
+                window.open(url, '_blank');
+            }
+        });
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(ta.value).then(() => alert('Copied'));
+        });
+    }
+}
 
 document.getElementById('searchBtn').addEventListener('click', () => {
     const raw = document.getElementById('searchNames').value || '';
@@ -588,9 +635,15 @@ document.getElementById('searchBtn').addEventListener('click', () => {
         container.appendChild(table);
     }
 
+    // Show search results pane
     document.getElementById('leftoversPane').classList.add('d-none');
     document.getElementById('textPane').classList.add('d-none');
     document.getElementById('searchResultsPane').classList.remove('d-none');
+
+    // Also show text pane with the specific message for search results
+    if (resultsMap.size > 0) {
+        showSearchTextPage(Array.from(resultsMap.values()).map(r => ({ name: r.name, phone: r.phones })));
+    }
 });
 
 document.getElementById('searchBackBtn').addEventListener('click', () => {
