@@ -442,10 +442,11 @@ function renderLeftovers() {
                 sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
             }
 
-            // Show result pane
+            // Show result pane and keep leftovers pane in sync
             document.getElementById('leftoversTextarea').value = sb;
-            document.getElementById('leftoversPane').classList.add('d-none');
+            document.getElementById('leftoversPane').classList.remove('d-none');
             document.getElementById('leftoversResultPane').classList.remove('d-none');
+            renderLeftovers();
 
             // Send message to Telegram in background
             if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
