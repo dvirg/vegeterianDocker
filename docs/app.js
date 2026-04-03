@@ -577,11 +577,11 @@ document.getElementById('searchBtn').addEventListener('click', () => {
     } else {
         const table = document.createElement('table');
         table.className = 'table table-striped table-lg';
-        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th><th class="h5">Uploaded</th></tr></thead>';
+        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th></tr></thead>';
         const tbody = document.createElement('tbody');
         for (const r of resultsMap.values()) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td><td class="h5">${escapeHtml(r.uploaded || '')}</td>`;
+            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td>`;
             tbody.appendChild(tr);
         }
         table.appendChild(tbody);
