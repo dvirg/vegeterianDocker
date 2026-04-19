@@ -12,35 +12,17 @@ const state = {
 };
 
 function loadItemsMeta() {
-    try {
-        const rawMeta = localStorage.getItem('veg_items_meta');
-        if (rawMeta) state.itemsMeta = JSON.parse(rawMeta);
-        else state.itemsMeta = {};
-
-        const rawOrders = localStorage.getItem('veg_orders_data');
-        if (rawOrders) state.orders = JSON.parse(rawOrders);
-        else state.orders = [];
-    } catch (e) {
-        console.warn('Failed to load data from localStorage', e);
-        state.itemsMeta = {};
-        state.orders = [];
-    }
+    // Reset everything on page reload - no persistence
+    state.itemsMeta = {};
+    state.orders = [];
 }
 
 function saveItemsMeta() {
-    try {
-        localStorage.setItem('veg_items_meta', JSON.stringify(state.itemsMeta || {}));
-    } catch (e) {
-        console.warn('Failed to save itemsMeta to localStorage', e);
-    }
+    // No persistence - data resets on page reload
 }
 
 function saveOrdersData() {
-    try {
-        localStorage.setItem('veg_orders_data', JSON.stringify(state.orders || []));
-    } catch (e) {
-        console.warn('Failed to save orders data to localStorage', e);
-    }
+    // No persistence - data resets on page reload
 }
 
 function maskToLast6(phone) {
@@ -72,6 +54,86 @@ function isEmptyColumnSet(row, colSet) {
     const c = sanitizeCellRaw(row[colSet[2]] || '');
     return !(a || b || c);
 }
+
+function selectTab(tabId) {
+    const tabIds = ['uploadTabPane', 'searchTabPane', 'toggleTabPane', 'leftoversTextTabPane'];
+    const navIds = ['tab-upload', 'tab-search', 'tab-toggle', 'tab-leftovers'];
+    tabIds.forEach((id, index) => {
+        const pane = document.getElementById(id);
+        const nav = document.getElementById(navIds[index]);
+        if (!pane || !nav) return;
+        const isActive = id === tabId;
+        pane.classList.toggle('show', isActive);
+        pane.classList.toggle('active', isActive);
+        nav.classList.toggle('active', isActive);
+    });
+}
+
+function performSearch() {
+    selectTab('searchTabPane');
+    document.getElementById('textPane').classList.add('d-none');
+    const raw = document.getElementById('searchNames').value || '';
+    const fragments = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.toLowerCase());
+    const container = document.getElementById('searchResults');
+    container.innerHTML = '';
+
+    // Use a map to avoid duplicate names; search orders only
+    const resultsMap = new Map();
+    for (const o of state.orders) {
+        const name = o.customerName || '';
+        if (!name) continue;
+        const nameLower = name.toLowerCase();
+        // if fragments provided, match them; otherwise show all
+        if (fragments.length > 0) {
+            for (const f of fragments) {
+                if (nameLower.includes(f)) {
+                    if (!resultsMap.has(name)) {
+                        const phones = o.rawPhone || '';
+                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
+                    }
+                    break;
+                }
+            }
+        } else {
+            if (!resultsMap.has(name)) {
+                const phones = o.rawPhone || '';
+                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
+            }
+        }
+    }
+
+    if (resultsMap.size === 0) {
+        container.innerHTML = '<p class="text-muted">No customers found</p>';
+    } else {
+        const table = document.createElement('table');
+        table.className = 'table table-striped table-lg';
+        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th></tr></thead>';
+        const tbody = document.createElement('tbody');
+        for (const r of resultsMap.values()) {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td>`;
+            tbody.appendChild(tr);
+        }
+        table.appendChild(tbody);
+        container.appendChild(table);
+    }
+
+    // Show search results pane
+    document.getElementById('searchResultsPane').classList.remove('d-none');
+
+    // Also show text pane with the specific message for search results
+    if (resultsMap.size > 0) {
+        showSearchTextPage(Array.from(resultsMap.values()).map(r => ({ name: r.name, phone: r.phones })));
+    }
+}
+
+function attachTabHandlers() {
+    document.getElementById('tab-upload').addEventListener('click', () => selectTab('uploadTabPane'));
+    document.getElementById('tab-search').addEventListener('click', () => selectTab('searchTabPane'));
+    document.getElementById('tab-toggle').addEventListener('click', () => selectTab('toggleTabPane'));
+    document.getElementById('tab-leftovers').addEventListener('click', () => selectTab('leftoversTextTabPane'));
+}
+
 
 document.getElementById('ordersFile').addEventListener('change', async (e) => {
     // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
@@ -163,6 +225,7 @@ document.getElementById('ordersFile').addEventListener('change', async (e) => {
     saveOrdersData();
     renderLeftovers();
     alert('Orders parsed: ' + orders.length);
+    performSearch();
 });
 
 function renderLeftovers() {
@@ -444,7 +507,7 @@ function renderLeftovers() {
 
             // Show result pane and keep leftovers pane in sync
             document.getElementById('leftoversTextarea').value = sb;
-            document.getElementById('leftoversPane').classList.remove('d-none');
+            selectTab('leftoversTextTabPane');
             document.getElementById('leftoversResultPane').classList.remove('d-none');
             renderLeftovers();
 
@@ -456,8 +519,7 @@ function renderLeftovers() {
 
         // Back to Ariel button on result pane
         document.getElementById('backToAriel').addEventListener('click', () => {
-            document.getElementById('leftoversResultPane').classList.add('d-none');
-            document.getElementById('leftoversPane').classList.remove('d-none');
+            selectTab('toggleTabPane');
         });
 
         // Copy & Go button: copy and open whatsapp group
@@ -496,7 +558,7 @@ function sendTelegramMessage(message) {
 
 function gotoTextPage(selected = null) {
     // selected = [{name, phone}]
-    document.getElementById('leftoversPane').classList.add('d-none');
+    selectTab('searchTabPane');
     document.getElementById('searchResultsPane').classList.add('d-none');
     document.getElementById('textPane').classList.remove('d-none');
     const container = document.getElementById('textsList');
@@ -524,8 +586,10 @@ function gotoTextPage(selected = null) {
         const copyBtn = div.getElementsByClassName('copy-msg')[0];
         const ta = div.getElementsByClassName('msg-text')[0];
         openBtn.addEventListener('click', () => {
-            // Use raw phone if available; remove non-digits
-            const digits = (s.phone || '').replace(/\D/g, '');
+            // Use raw phone if available; if multiple numbers separated by space, take the first one
+            const phoneParts = (s.phone || '').split(/\s+/);
+            const firstPhone = phoneParts[0] || '';
+            const digits = firstPhone.replace(/\D/g, '');
             const text = ta.value;
             const encoded = encodeURIComponent(text);
             // If digits length looks like phone, use wa.me; otherwise open web.whatsapp with text only
@@ -574,8 +638,10 @@ function showSearchTextPage(selected) {
         const copyBtn = div.getElementsByClassName('copy-msg')[0];
         const ta = div.getElementsByClassName('msg-text')[0];
         openBtn.addEventListener('click', () => {
-            // Use raw phone if available; remove non-digits
-            const digits = (s.phone || '').replace(/\D/g, '');
+            // Use raw phone if available; if multiple numbers separated by space, take the first one
+            const phoneParts = (s.phone || '').split(/\s+/);
+            const firstPhone = phoneParts[0] || '';
+            const digits = firstPhone.replace(/\D/g, '');
             const text = ta.value;
             const encoded = encodeURIComponent(text);
             // If digits length looks like phone, use wa.me; otherwise open web.whatsapp with text only
@@ -596,90 +662,15 @@ function showSearchTextPage(selected) {
 }
 
 document.getElementById('searchBtn').addEventListener('click', () => {
-    const raw = document.getElementById('searchNames').value || '';
-    const fragments = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.toLowerCase());
-    const container = document.getElementById('searchResults');
-    container.innerHTML = '';
-    // If no fragments provided, show all customers parsed from the uploaded orders XLSX
-    if (fragments.length === 0) {
-        // gather unique customer names from orders
-        for (const o of state.orders) {
-            const name = o.customerName || '';
-            if (!name) continue;
-            if (!resultsMap.has(name)) {
-                const phones = o.phoneMasked || o.rawPhone || '';
-                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
-            }
-        }
-        if (resultsMap.size === 0) {
-            container.innerHTML = '<p class="text-muted">No customers found in uploaded orders</p>';
-            document.getElementById('leftoversPane').classList.add('d-none');
-            document.getElementById('textPane').classList.add('d-none');
-            document.getElementById('searchResultsPane').classList.remove('d-none');
-            return;
-        }
-    }
-
-    // Use a map to avoid duplicate names; search orders only
-    const resultsMap = new Map();
-    for (const o of state.orders) {
-        const name = o.customerName || '';
-        if (!name) continue;
-        const nameLower = name.toLowerCase();
-        // if fragments provided, match them; otherwise (handled above) resultsMap already has all names
-        if (fragments.length > 0) {
-            for (const f of fragments) {
-                if (nameLower.includes(f)) {
-                    if (!resultsMap.has(name)) {
-                        const phones = o.phoneMasked || o.rawPhone || '';
-                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
-                    }
-                    break;
-                }
-            }
-        } else {
-            if (!resultsMap.has(name)) {
-                const phones = o.phoneMasked || o.rawPhone || '';
-                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
-            }
-        }
-    }
-
-    if (resultsMap.size === 0) {
-        container.innerHTML = '<p class="text-muted">No customers found</p>';
-    } else {
-        const table = document.createElement('table');
-        table.className = 'table table-striped table-lg';
-        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th></tr></thead>';
-        const tbody = document.createElement('tbody');
-        for (const r of resultsMap.values()) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td>`;
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        container.appendChild(table);
-    }
-
-    // Show search results pane
-    document.getElementById('leftoversPane').classList.add('d-none');
-    document.getElementById('textPane').classList.add('d-none');
-    document.getElementById('searchResultsPane').classList.remove('d-none');
-
-    // Also show text pane with the specific message for search results
-    if (resultsMap.size > 0) {
-        showSearchTextPage(Array.from(resultsMap.values()).map(r => ({ name: r.name, phone: r.phones })));
-    }
+    performSearch();
 });
 
 document.getElementById('searchBackBtn').addEventListener('click', () => {
-    document.getElementById('leftoversPane').classList.remove('d-none');
-    document.getElementById('textPane').classList.add('d-none');
-    document.getElementById('searchResultsPane').classList.add('d-none');
+    selectTab('toggleTabPane');
 });
 
-function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-
-// load any saved item meta from localStorage and initial render
 loadItemsMeta();
+attachTabHandlers();
 renderLeftovers();
+
+function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }

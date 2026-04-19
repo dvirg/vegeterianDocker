@@ -13,67 +13,99 @@
     <div class="container py-4">
         <h1 class="mb-3">Vegeterian</h1>
 
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5>Upload Orders (Excel)</h5>
-                        <input id="ordersFile" type="file" accept=".xlsx,.xls" class="form-control mb-2">
-                    </div>
-                </div>
-
-                <!-- Customers CSV upload removed (not needed) -->
-
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <h5>Search</h5>
-                        <label class="form-label">Enter one or more name fragments (one per line)</label>
-                        <textarea id="searchNames" class="form-control mb-2" rows="5"
-                            placeholder="One name fragment per line"></textarea>
-                        <div class="d-flex gap-2">
-                            <button id="searchBtn" class="btn btn-primary btn-sm">Search</button>
-                            <button id="searchBackBtn" class="btn btn-outline-secondary btn-sm">Back to
-                                Leftovers</button>
-                        </div>
-                    </div>
-                </div>
-
-
+        <div class="row mb-3">
+            <div class="col-12">
+                <ul class="nav nav-tabs" id="appTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tab-upload" type="button" role="tab">Upload</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-search" type="button" role="tab">Search</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-toggle" type="button" role="tab">Toggle List</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-leftovers" type="button" role="tab">Leftovers Text</button>
+                    </li>
+                </ul>
             </div>
+        </div>
 
-            <div class="col-md-8">
-                <div id="mainPane">
-                    <div id="leftoversPane" class="pane">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h1 class="mb-0">Ariel - Leftovers</h1>
-                            <div class="ariel-actions">
-                                <button id="submitLeftovers" class="btn btn-primary ariel-submit">Submit</button>
-                                <button id="setAllUnavailable" class="btn btn-warning ms-2">Set All Unavailable</button>
-                                <button id="setAllAvailable" class="btn btn-success ms-2">Set All Available</button>
-                                <button id="setAllKgAvailable" class="btn btn-info ms-2">Set All KG Available</button>
+        <div class="row">
+            <div class="col-12">
+                <div class="tab-content">
+                    <div id="uploadTabPane" class="tab-pane fade show active" role="tabpanel">
+                        <div class="card mb-3">
+                            <div class="card-body">
+                                <h5>Upload Orders (Excel)</h5>
+                                <input id="ordersFile" type="file" accept=".xlsx,.xls" class="form-control mb-2">
                             </div>
                         </div>
-                        <div id="leftoversList"></div>
                     </div>
 
-                    <div id="leftoversResultPane" class="pane d-none">
-                        <h3>Items Leftovers Prices</h3>
-                        <div class="mb-3 d-flex">
-                            <button id="backToAriel" class="btn btn-success ms-2">עדכון עודפים</button>
-                            <button id="copyLeftoversBtn" class="btn btn-outline-primary ms-2">Copy & Go</button>
+                    <div id="searchTabPane" class="tab-pane fade" role="tabpanel">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5>Search</h5>
+                                        <label class="form-label">Enter one or more name fragments (one per
+                                            line)</label>
+                                        <textarea id="searchNames" class="form-control mb-2" rows="5"
+                                            placeholder="One name fragment per line">וולדמן
+אברמוביץ
+מובשוביץ
+סידו
+פרון</textarea>
+                                        <div class="d-flex gap-2">
+                                            <button id="searchBtn" class="btn btn-primary btn-sm">Search</button>
+                                            <button id="searchBackBtn" class="btn btn-outline-secondary btn-sm">Back to
+                                                Toggle List</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-8">
+                                <div id="searchResultsPane" class="pane d-none">
+                                    <h3>Search Results</h3>
+                                    <div id="searchResults"></div>
+                                </div>
+                                <div id="textPane" class="pane d-none">
+                                    <h3>Generated Texts</h3>
+                                    <div id="textsList"></div>
+                                </div>
+                            </div>
                         </div>
-                        <textarea id="leftoversTextarea" class="form-control ariel-text" rows="20"
-                            style="direction: rtl; text-align: right;"></textarea>
                     </div>
 
-                    <div id="textPane" class="pane d-none">
-                        <h3>Generated Texts</h3>
-                        <div id="textsList"></div>
+                    <div id="toggleTabPane" class="tab-pane fade" role="tabpanel">
+                        <div id="leftoversPane" class="pane">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h1 class="mb-0">Ariel - Leftovers</h1>
+                                <div class="ariel-actions">
+                                    <button id="submitLeftovers" class="btn btn-primary ariel-submit">Submit</button>
+                                    <button id="setAllUnavailable" class="btn btn-warning ms-2">Set All
+                                        Unavailable</button>
+                                    <button id="setAllAvailable" class="btn btn-success ms-2">Set All Available</button>
+                                    <button id="setAllKgAvailable" class="btn btn-info ms-2">Set All KG
+                                        Available</button>
+                                </div>
+                            </div>
+                            <div id="leftoversList"></div>
+                        </div>
                     </div>
 
-                    <div id="searchResultsPane" class="pane d-none">
-                        <h3>Search Results</h3>
-                        <div id="searchResults"></div>
+                    <div id="leftoversTextTabPane" class="tab-pane fade" role="tabpanel">
+                        <div id="leftoversResultPane" class="pane">
+                            <h3>Items Leftovers Prices</h3>
+                            <div class="mb-3 d-flex">
+                                <button id="backToAriel" class="btn btn-success ms-2">עדכון עודפים</button>
+                                <button id="copyLeftoversBtn" class="btn btn-outline-primary ms-2">Copy & Go</button>
+                            </div>
+                            <textarea id="leftoversTextarea" class="form-control ariel-text" rows="20"
+                                style="direction: rtl; text-align: right;"></textarea>
+                        </div>
                     </div>
                 </div>
             </div>
