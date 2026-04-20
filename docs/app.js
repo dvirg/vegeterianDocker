@@ -134,24 +134,33 @@ function attachTabHandlers() {
     document.getElementById('tab-leftovers').addEventListener('click', () => selectTab('leftoversTextTabPane'));
 }
 
+function attachFileHandlers() {
+    const ordersFileInput = document.getElementById('ordersFile');
+    const processFileBtn = document.getElementById('processFileBtn');
+
+    if (ordersFileInput) {
+        ordersFileInput.addEventListener('change', (e) => {
+            selectedFile = e.target.files[0];
+            if (selectedFile) {
+                processFileBtn.disabled = false;
+            } else {
+                processFileBtn.disabled = true;
+            }
+        });
+    }
+
+    if (processFileBtn) {
+        processFileBtn.addEventListener('click', async () => {
+            if (!selectedFile) {
+                alert('Please select a file first');
+                return;
+            }
+            await processUploadedFile(selectedFile);
+        });
+    }
+}
+
 let selectedFile = null;
-
-document.getElementById('ordersFile').addEventListener('change', (e) => {
-    selectedFile = e.target.files[0];
-    if (selectedFile) {
-        document.getElementById('processFileBtn').disabled = false;
-    } else {
-        document.getElementById('processFileBtn').disabled = true;
-    }
-});
-
-document.getElementById('processFileBtn').addEventListener('click', async () => {
-    if (!selectedFile) {
-        alert('Please select a file first');
-        return;
-    }
-    await processUploadedFile(selectedFile);
-});
 
 async function processUploadedFile(f) {
     // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
@@ -685,8 +694,17 @@ document.getElementById('searchBackBtn').addEventListener('click', () => {
     selectTab('toggleTabPane');
 });
 
-loadItemsMeta();
-attachTabHandlers();
-renderLeftovers();
+function initializeApp() {
+    loadItemsMeta();
+    attachTabHandlers();
+    attachFileHandlers();
+    renderLeftovers();
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initializeApp);
+} else {
+    initializeApp();
+}
 
 function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
