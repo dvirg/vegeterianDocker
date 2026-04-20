@@ -134,14 +134,30 @@ function attachTabHandlers() {
     document.getElementById('tab-leftovers').addEventListener('click', () => selectTab('leftoversTextTabPane'));
 }
 
+let selectedFile = null;
 
-document.getElementById('ordersFile').addEventListener('change', async (e) => {
+document.getElementById('ordersFile').addEventListener('change', (e) => {
+    selectedFile = e.target.files[0];
+    if (selectedFile) {
+        document.getElementById('processFileBtn').disabled = false;
+    } else {
+        document.getElementById('processFileBtn').disabled = true;
+    }
+});
+
+document.getElementById('processFileBtn').addEventListener('click', async () => {
+    if (!selectedFile) {
+        alert('Please select a file first');
+        return;
+    }
+    await processUploadedFile(selectedFile);
+});
+
+async function processUploadedFile(f) {
     // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
     state.itemsMeta = {};
     saveItemsMeta();
 
-    const f = e.target.files[0];
-    if (!f) return; // Do nothing if file dialog was cancelled
     const data = await f.arrayBuffer();
     const wb = XLSX.read(data, { type: 'array' });
     const sheet = wb.Sheets[wb.SheetNames[0]];
@@ -226,7 +242,7 @@ document.getElementById('ordersFile').addEventListener('change', async (e) => {
     renderLeftovers();
     alert('Orders parsed: ' + orders.length);
     performSearch();
-});
+}
 
 function renderLeftovers() {
     const container = document.getElementById('leftoversList');
