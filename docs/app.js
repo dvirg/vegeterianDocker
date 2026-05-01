@@ -327,11 +327,11 @@ function renderLeftovers() {
             // prefer explicit type from parsed item (amount column), otherwise fall back to heuristics
             if (it.type) {
                 existing.type = it.type;
-            } else {
-                const lower = renamed.toLowerCase();
-                if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
-                    existing.type = 'kg';
-                }
+            }
+            // always apply heuristic for specific items (override parsed type if needed)
+            const lower = renamed.toLowerCase();
+            if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+                existing.type = 'kg';
             }
             itemsMap.set(renamed, existing);
         }
