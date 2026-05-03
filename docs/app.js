@@ -221,7 +221,24 @@ async function processUploadedFile(f) {
         addLog('Reading file as array buffer...', 'info');
         let data;
         try {
-            data = await f.arrayBuffer();
+            // Use FileReader API instead of File.arrayBuffer() for better browser compatibility
+            data = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    addLog('FileReader.onload triggered', 'info');
+                    resolve(e.target.result);
+                };
+                reader.onerror = (e) => {
+                    addLog(`FileReader error: ${reader.error?.message || reader.error}`, 'error');
+                    reject(reader.error);
+                };
+                reader.onprogress = (e) => {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    addLog(`Reading... ${percent}%`, 'info');
+                };
+                addLog('FileReader.readAsArrayBuffer starting...', 'info');
+                reader.readAsArrayBuffer(f);
+            });
         } catch (readError) {
             const readMsg = readError?.message || readError?.name || 'Unknown file read error';
             const readType = readError?.constructor?.name || 'Error';
