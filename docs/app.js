@@ -11,6 +11,39 @@ const state = {
     itemsMeta: {}
 };
 
+// Logging utility
+function addLog(message, type = 'info') {
+    const logDiv = document.getElementById('uploadLog');
+    if (!logDiv) return;
+
+    const timestamp = new Date().toLocaleTimeString();
+    const prefix = `[${timestamp}]`;
+    let logEntry = `${prefix} ${message}`;
+
+    if (type === 'error') {
+        logEntry = `❌ ${logEntry}`;
+    } else if (type === 'success') {
+        logEntry = `✓ ${logEntry}`;
+    } else if (type === 'warning') {
+        logEntry = `⚠ ${logEntry}`;
+    } else {
+        logEntry = `ℹ ${logEntry}`;
+    }
+
+    const entry = document.createElement('div');
+    entry.textContent = logEntry;
+    if (type === 'error') entry.style.color = '#dc3545';
+    if (type === 'success') entry.style.color = '#28a745';
+    if (type === 'warning') entry.style.color = '#ffc107';
+
+    // Replace "Logs will appear here" on first real log
+    const firstMsg = logDiv.querySelector('.text-muted');
+    if (firstMsg) firstMsg.remove();
+
+    logDiv.appendChild(entry);
+    logDiv.scrollTop = logDiv.scrollHeight; // Auto-scroll to bottom
+}
+
 function loadItemsMeta() {
     // Reset everything on page reload - no persistence
     state.itemsMeta = {};
@@ -137,12 +170,14 @@ function attachTabHandlers() {
 function attachFileHandlers() {
     const ordersFileInput = document.getElementById('ordersFile');
     const processFileBtn = document.getElementById('processFileBtn');
+    const clearLogsBtn = document.getElementById('clearLogsBtn');
 
     if (ordersFileInput) {
         ordersFileInput.addEventListener('change', (e) => {
             selectedFile = e.target.files[0];
             if (selectedFile) {
                 processFileBtn.disabled = false;
+                addLog(`File selected: ${selectedFile.name}`, 'info');
             } else {
                 processFileBtn.disabled = true;
             }
@@ -152,10 +187,20 @@ function attachFileHandlers() {
     if (processFileBtn) {
         processFileBtn.addEventListener('click', async () => {
             if (!selectedFile) {
+                addLog('No file selected', 'error');
                 alert('Please select a file first');
                 return;
             }
+            clearLogsBtn.style.display = 'inline-block';
             await processUploadedFile(selectedFile);
+        });
+    }
+
+    if (clearLogsBtn) {
+        clearLogsBtn.addEventListener('click', () => {
+            const logDiv = document.getElementById('uploadLog');
+            logDiv.innerHTML = '<span class="text-muted">Logs will appear here...</span>';
+            clearLogsBtn.style.display = 'none';
         });
     }
 }
@@ -163,94 +208,118 @@ function attachFileHandlers() {
 let selectedFile = null;
 
 async function processUploadedFile(f) {
-    // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
-    state.itemsMeta = {};
-    saveItemsMeta();
+    try {
+        addLog(`Starting file processing: ${f.name}`, 'info');
+        addLog(`File size: ${(f.size / 1024).toFixed(2)} KB`, 'info');
 
-    const data = await f.arrayBuffer();
-    const wb = XLSX.read(data, { type: 'array' });
-    const sheet = wb.Sheets[wb.SheetNames[0]];
-    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+        // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
+        state.itemsMeta = {};
+        saveItemsMeta();
+        addLog('Cleared previous item metadata', 'info');
 
-    // Parse similar to server logic: detect customer rows by containing 'איסוף: לוד'
-    // Note: the sheet contains two sets of columns (columns 0..2 and 4..6). We iterate both sets
-    // and treat each as an independent list (mirrors UploadOrdersExcelController.java behavior).
-    const orders = [];
+        addLog('Reading file as array buffer...', 'info');
+        const data = await f.arrayBuffer();
+        addLog('File read successfully', 'success');
 
-    // Dynamically detect column-start indices that contain customer markers (איסוף: לוד).
-    // Some XLSX exports place the second set at different column indexes; this scans the sheet
-    // for any column that contains the customer marker and treats that as the start of a column set.
-    const detectedStarts = new Set();
-    for (let r = 0; r < rows.length; r++) {
-        const row = rows[r];
-        if (!row) continue;
-        for (let c = 0; c < row.length; c++) {
-            const cell = sanitizeCellRaw(row[c] || '');
-            if (cell.includes('איסוף: לוד')) detectedStarts.add(c);
-        }
-    }
-    // If no starts detected, fall back to the common layout (0 and 4)
-    if (detectedStarts.size === 0) {
-        detectedStarts.add(0);
-        detectedStarts.add(4);
-    }
+        addLog('Parsing XLSX file...', 'info');
+        const wb = XLSX.read(data, { type: 'array' });
+        addLog(`Found ${wb.SheetNames.length} sheet(s): ${wb.SheetNames.join(', ')}`, 'info');
 
-    const columnStarts = Array.from(detectedStarts).sort((a, b) => a - b);
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
+        addLog(`Parsed ${rows.length} rows from sheet`, 'info');
 
-    for (const start of columnStarts) {
-        const colSet = [start, start + 1, start + 2];
-        let current = null;
+        // Parse similar to server logic: detect customer rows by containing 'איסוף: לוד'
+        // Note: the sheet contains two sets of columns (columns 0..2 and 4..6). We iterate both sets
+        // and treat each as an independent list (mirrors UploadOrdersExcelController.java behavior).
+        const orders = [];
+        addLog('Starting to detect column sets...', 'info');
+
+        // Dynamically detect column-start indices that contain customer markers (איסוף: לוד).
+        // Some XLSX exports place the second set at different column indexes; this scans the sheet
+        // for any column that contains the customer marker and treats that as the start of a column set.
+        const detectedStarts = new Set();
         for (let r = 0; r < rows.length; r++) {
             const row = rows[r];
-            if (!row || row.length === 0) continue;
-            // skip fully empty column-sets (mimics clearing/invisible columns on server)
-            if (isEmptyColumnSet(row, colSet)) continue;
-            const first = sanitizeCellRaw(row[colSet[0]] || '');
-            if (first.includes('איסוף: לוד')) {
-                const parts = first.split('איסוף: לוד');
-                const name = (parts[0] || '').trim();
-                const rawPhone = (parts[1] || '').trim();
-                const phoneMasked = maskToLast6(rawPhone);
-                current = { customerName: name, rawPhone, phoneMasked, items: [] };
-                orders.push(current);
-            } else if (current) {
-                // product rows: attempt to read product name and qty from the current column set
-                const product = sanitizeCellRaw(row[colSet[0]] || '');
-                const quantity = sanitizeCellRaw(row[colSet[1]] || '');
-                const price = sanitizeCellRaw(row[colSet[2]] || '');
-                if (product && product !== 'מוצר') {
-                    // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
-                    const qtyText = quantity || '';
-                    const isKg = /ק.?ג/.test(qtyText);
-                    const isUnit = /יח/.test(qtyText);
-                    // parse numeric amount and price
-                    const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-                    const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+            if (!row) continue;
+            for (let c = 0; c < row.length; c++) {
+                const cell = sanitizeCellRaw(row[c] || '');
+                if (cell.includes('איסוף: לוד')) detectedStarts.add(c);
+            }
+        }
+        // If no starts detected, fall back to the common layout (0 and 4)
+        if (detectedStarts.size === 0) {
+            addLog('No column markers found, using default layout (0, 4)', 'warning');
+            detectedStarts.add(0);
+            detectedStarts.add(4);
+        } else {
+            addLog(`Detected ${detectedStarts.size} column set(s) at indices: ${Array.from(detectedStarts).sort((a, b) => a - b).join(', ')}`, 'info');
+        }
 
-                    // ignore items that have no amount or price (like category headers)
-                    if (isNaN(amountNum) || isNaN(priceNum)) {
-                        continue;
-                    }
+        const columnStarts = Array.from(detectedStarts).sort((a, b) => a - b);
 
-                    let unitPrice = NaN;
-                    if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
-                        // total price divided by amount -> unit price
-                        unitPrice = priceNum / amountNum;
-                    } else {
-                        // fallback: try to parse price as unit price directly
-                        unitPrice = isNaN(priceNum) ? NaN : priceNum;
+        for (const start of columnStarts) {
+            const colSet = [start, start + 1, start + 2];
+            addLog(`Processing column set at index ${start}...`, 'info');
+            let current = null;
+            for (let r = 0; r < rows.length; r++) {
+                const row = rows[r];
+                if (!row || row.length === 0) continue;
+                // skip fully empty column-sets (mimics clearing/invisible columns on server)
+                if (isEmptyColumnSet(row, colSet)) continue;
+                const first = sanitizeCellRaw(row[colSet[0]] || '');
+                if (first.includes('איסוף: לוד')) {
+                    const parts = first.split('איסוף: לוד');
+                    const name = (parts[0] || '').trim();
+                    const rawPhone = (parts[1] || '').trim();
+                    const phoneMasked = maskToLast6(rawPhone);
+                    current = { customerName: name, rawPhone, phoneMasked, items: [] };
+                    orders.push(current);
+                    addLog(`Found customer: ${name || '(unnamed)'} | Phone: ${rawPhone}`, 'info');
+                } else if (current) {
+                    // product rows: attempt to read product name and qty from the current column set
+                    const product = sanitizeCellRaw(row[colSet[0]] || '');
+                    const quantity = sanitizeCellRaw(row[colSet[1]] || '');
+                    const price = sanitizeCellRaw(row[colSet[2]] || '');
+                    if (product && product !== 'מוצר') {
+                        // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
+                        const qtyText = quantity || '';
+                        const isKg = /ק.?ג/.test(qtyText);
+                        const isUnit = /יח/.test(qtyText);
+                        // parse numeric amount and price
+                        const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                        const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+
+                        // ignore items that have no amount or price (like category headers)
+                        if (isNaN(amountNum) || isNaN(priceNum)) {
+                            continue;
+                        }
+
+                        let unitPrice = NaN;
+                        if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
+                            // total price divided by amount -> unit price
+                            unitPrice = priceNum / amountNum;
+                        } else {
+                            // fallback: try to parse price as unit price directly
+                            unitPrice = isNaN(priceNum) ? NaN : priceNum;
+                        }
+                        const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
+                        current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
+                        addLog(`  └─ Item: ${product} | Qty: ${quantity} | Price: ${price}`, 'info');
                     }
-                    const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
-                    current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
                 }
             }
         }
+        state.orders = orders;
+        saveOrdersData();
+        addLog(`Successfully parsed ${orders.length} order(s)`, 'success');
+        renderLeftovers();
+        performSearch();
+    } catch (error) {
+        addLog(`ERROR: ${error.message}`, 'error');
+        addLog(`Stack: ${error.stack}`, 'error');
+        alert('Error processing file: ' + error.message);
     }
-    state.orders = orders;
-    saveOrdersData();
-    renderLeftovers();
-    alert('Orders parsed: ' + orders.length);
-    performSearch();
 }
 
 function renderLeftovers() {
