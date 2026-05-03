@@ -210,6 +210,7 @@ let selectedFile = null;
 async function processUploadedFile(f) {
     try {
         addLog(`Starting file processing: ${f.name}`, 'info');
+        addLog(`File type: ${f.type}`, 'info');
         addLog(`File size: ${(f.size / 1024).toFixed(2)} KB`, 'info');
 
         // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
@@ -218,7 +219,16 @@ async function processUploadedFile(f) {
         addLog('Cleared previous item metadata', 'info');
 
         addLog('Reading file as array buffer...', 'info');
-        const data = await f.arrayBuffer();
+        let data;
+        try {
+            data = await f.arrayBuffer();
+        } catch (readError) {
+            const readMsg = readError?.message || readError?.name || 'Unknown file read error';
+            const readType = readError?.constructor?.name || 'Error';
+            addLog(`File read failed [${readType}]: ${readMsg}`, 'error');
+            if (readError?.code) addLog(`Error code: ${readError.code}`, 'error');
+            throw readError;
+        }
         addLog('File read successfully', 'success');
 
         addLog('Parsing XLSX file...', 'info');
@@ -316,9 +326,14 @@ async function processUploadedFile(f) {
         renderLeftovers();
         performSearch();
     } catch (error) {
-        addLog(`ERROR: ${error.message}`, 'error');
-        addLog(`Stack: ${error.stack}`, 'error');
-        alert('Error processing file: ' + error.message);
+        const errorMsg = error?.message || error?.toString?.() || 'Unknown error occurred';
+        const errorName = error?.name || 'Error';
+        addLog(`ERROR [${errorName}]: ${errorMsg}`, 'error');
+        if (error?.stack) {
+            addLog(`Stack trace: ${error.stack}`, 'error');
+        }
+        console.error('File processing error:', error);
+        alert('Error processing file: ' + errorMsg);
     }
 }
 
