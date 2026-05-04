@@ -169,30 +169,17 @@ function attachTabHandlers() {
 
 function attachFileHandlers() {
     const ordersFileInput = document.getElementById('ordersFile');
-    const processFileBtn = document.getElementById('processFileBtn');
     const clearLogsBtn = document.getElementById('clearLogsBtn');
 
     if (ordersFileInput) {
         ordersFileInput.addEventListener('change', (e) => {
             selectedFile = e.target.files[0];
             if (selectedFile) {
-                processFileBtn.disabled = false;
                 addLog(`File selected: ${selectedFile.name}`, 'info');
-            } else {
-                processFileBtn.disabled = true;
+                clearLogsBtn.style.display = 'inline-block';
+                // Automatically process file immediately after selection
+                processUploadedFile(selectedFile);
             }
-        });
-    }
-
-    if (processFileBtn) {
-        processFileBtn.addEventListener('click', async () => {
-            if (!selectedFile) {
-                addLog('No file selected', 'error');
-                alert('Please select a file first');
-                return;
-            }
-            clearLogsBtn.style.display = 'inline-block';
-            await processUploadedFile(selectedFile);
         });
     }
 
@@ -201,6 +188,9 @@ function attachFileHandlers() {
             const logDiv = document.getElementById('uploadLog');
             logDiv.innerHTML = '<span class="text-muted">Logs will appear here...</span>';
             clearLogsBtn.style.display = 'none';
+            // Reset file input
+            ordersFileInput.value = '';
+            selectedFile = null;
         });
     }
 }
