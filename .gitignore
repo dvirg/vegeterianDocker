@@ -7,3 +7,4 @@ app-inspect.jar
 *.trace.db
 /uploaded_excels
 /node_modules
+/docs/birthday/*
