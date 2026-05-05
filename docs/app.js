@@ -399,6 +399,8 @@ function renderLeftovers() {
             if (!renamed) continue;
             // prefer unitPrice parsed from the line (totalPrice/amount) if available
             const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
+            // skip items with price 0
+            if (price === 0) continue;
             const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
             existing.originals.add(original);
             if (!isNaN(price)) {
@@ -555,7 +557,7 @@ function renderLeftovers() {
             for (const [renamed, info] of itemsMap.entries()) {
                 if (!info.available) continue;
                 const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
-                if (isNaN(price)) continue;
+                if (isNaN(price) || price === 0) continue;
                 if (lowestPriceMap.has(renamed)) {
                     if (price < lowestPriceMap.get(renamed)) {
                         lowestPriceMap.set(renamed, price);
