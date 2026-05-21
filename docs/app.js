@@ -122,7 +122,17 @@ function performSearch() {
                 if (nameLower.includes(f)) {
                     if (!resultsMap.has(name)) {
                         const phones = o.rawPhone || '';
-                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
+                        // Sum up total prices from all items (priceNum is already the total price per item)
+                        let total = 0;
+                        if (o.items && Array.isArray(o.items)) {
+                            for (const item of o.items) {
+                                const itemTotal = item.price ? parseFloat(String(item.price).replace(/[^0-9.,\-]/g, '').replace(',', '.')) : 0;
+                                if (!isNaN(itemTotal)) {
+                                    total += itemTotal;
+                                }
+                            }
+                        }
+                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders', total: total.toFixed(2) });
                     }
                     break;
                 }
@@ -130,7 +140,17 @@ function performSearch() {
         } else {
             if (!resultsMap.has(name)) {
                 const phones = o.rawPhone || '';
-                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders' });
+                // Sum up total prices from all items (price is already the total price per item)
+                let total = 0;
+                if (o.items && Array.isArray(o.items)) {
+                    for (const item of o.items) {
+                        const itemTotal = item.price ? parseFloat(String(item.price).replace(/[^0-9.,\-]/g, '').replace(',', '.')) : 0;
+                        if (!isNaN(itemTotal)) {
+                            total += itemTotal;
+                        }
+                    }
+                }
+                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders', total: total.toFixed(2) });
             }
         }
     }
@@ -140,11 +160,11 @@ function performSearch() {
     } else {
         const table = document.createElement('table');
         table.className = 'table table-striped table-lg';
-        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th></tr></thead>';
+        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th><th class="h5">סהכ</th></tr></thead>';
         const tbody = document.createElement('tbody');
         for (const r of resultsMap.values()) {
             const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td>`;
+            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td><td class="h5">${r.total}</td>`;
             tbody.appendChild(tr);
         }
         table.appendChild(tbody);
@@ -299,6 +319,10 @@ async function processUploadedFile(f) {
                     const quantity = sanitizeCellRaw(row[colSet[1]] || '');
                     const price = sanitizeCellRaw(row[colSet[2]] || '');
                     if (product && product !== 'מוצר') {
+                        // Skip grand total rows
+                        if (product.startsWith('סך')) {
+                            continue;
+                        }
                         // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
                         const qtyText = quantity || '';
                         const isKg = /ק.?ג/.test(qtyText);
@@ -307,8 +331,9 @@ async function processUploadedFile(f) {
                         const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                         const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
 
-                        // ignore items that have no amount or price (like category headers)
-                        if (isNaN(amountNum) || isNaN(priceNum)) {
+                        // ignore items that have no price (like category headers)
+                        // but allow items with price but no quantity (like תוספות/additions)
+                        if (isNaN(priceNum)) {
                             continue;
                         }
 
@@ -627,12 +652,11 @@ function renderLeftovers() {
             document.getElementById('leftoversTextarea').value = sb;
             selectTab('leftoversTextTabPane');
             document.getElementById('leftoversResultPane').classList.remove('d-none');
-            renderLeftovers();
 
-            // Send message to Telegram in background
-            if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
-                sendTelegramMessage(sb);
-            }
+            // Send message to Telegram in background (disabled for now)
+            // if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
+            //     sendTelegramMessage(sb);
+            // }
         });
 
         // Back to Ariel button on result pane
