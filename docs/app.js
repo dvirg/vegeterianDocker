@@ -394,7 +394,7 @@ function renderLeftovers() {
         if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
         if (itemName.includes("צ'ילי")) return "צ'ילי";
         if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-        if (itemName.includes('תפו"א למיקרו')) return 'תפו"א-למיקרו';
+        if (itemName.includes(' adulte')) return ' adulte';
         if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
         if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
         if (itemName.includes('לאליק')) return 'חסה-לאליק';
@@ -448,7 +448,7 @@ function renderLeftovers() {
             }
             // always apply heuristic for specific items (override parsed type if needed)
             const lower = renamed.toLowerCase();
-            if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+            if (lower.includes('בננה') || lower.includes(' adulte') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
                 existing.type = 'kg';
             }
             itemsMap.set(renamed, existing);
@@ -548,7 +548,7 @@ function renderLeftovers() {
 
         // Wire action buttons
         document.getElementById('setAllAvailable').addEventListener('click', () => {
-            for (const [name] of itemsMap.entries()) {
+            for (const [name] of Object.entries(state.itemsMeta)) {
                 state.itemsMeta[name] = state.itemsMeta[name] || {};
                 state.itemsMeta[name].available = true;
             }
@@ -556,7 +556,7 @@ function renderLeftovers() {
             renderLeftovers();
         });
         document.getElementById('setAllUnavailable').addEventListener('click', () => {
-            for (const [name] of itemsMap.entries()) {
+            for (const [name] of Object.entries(state.itemsMeta)) {
                 state.itemsMeta[name] = state.itemsMeta[name] || {};
                 state.itemsMeta[name].available = false;
             }
@@ -564,8 +564,8 @@ function renderLeftovers() {
             renderLeftovers();
         });
         document.getElementById('setAllKgAvailable').addEventListener('click', () => {
-            for (const [name, v] of itemsMap.entries()) {
-                const type = (state.itemsMeta[name] && state.itemsMeta[name].type) || v.type;
+            for (const [name, meta] of Object.entries(state.itemsMeta)) {
+                const type = meta.type;
                 if (type === 'kg') {
                     state.itemsMeta[name] = state.itemsMeta[name] || {};
                     state.itemsMeta[name].available = true;
@@ -577,6 +577,83 @@ function renderLeftovers() {
 
         document.getElementById('submitLeftovers').addEventListener('click', () => {
             // Build priceList from available items using logic ported from ItemService.buildPriceList
+            // Rebuild itemsMap from state.orders (same as in renderLeftovers)
+            const itemsMap = new Map();
+            function renameItemJS(itemName) {
+                if (!itemName) return null;
+                const trimmed = itemName.trim();
+                if (trimmed.startsWith('תוספות')) return null;
+                if (trimmed.startsWith('סך')) return null;
+                const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
+                const split = n.trim().split(/\s+/);
+                const firstWord = split.length > 0 ? split[0] : '';
+                if (itemName.includes('תפוח')) return 'תפוח-עץ';
+                if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
+                if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
+                if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
+                if (itemName.includes("צ'ילי")) return "צ'ילי";
+                if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
+                if (itemName.includes(' adulte')) return ' adulte';
+                if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
+                if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
+                if (itemName.includes('לאליק')) return 'חסה-לאליק';
+                if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
+                if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
+                if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
+                if (itemName.includes('שום טרי')) return 'שום-ישראלי';
+                if (itemName.includes('שום קלוף')) return null;
+                if (itemName.includes('שום יבש')) return 'שום-רביעייה';
+                if (itemName.includes('שרי')) return 'עגבנית-שרי';
+                if (itemName.includes('ענב לבן')) return 'ענבים';
+                if (itemName.includes('קלחי')) return 'תירס';
+                return firstWord;
+            }
+            function parseFloatSafe(s) {
+                if (!s) return NaN;
+                const cleaned = String(s).replace(/[,₪]/g, '').replace(/[^0-9.\-]/g, '');
+                const v = parseFloat(cleaned);
+                return isNaN(v) ? NaN : v;
+            }
+            for (const o of state.orders) {
+                for (const it of o.items) {
+                    const original = it.name || '';
+                    const renamed = renameItemJS(original);
+                    if (!renamed) continue;
+                    const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
+                    if (price === 0) continue;
+                    const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
+                    existing.originals.add(original);
+                    if (!isNaN(price)) {
+                        if (price < existing.priceMin) existing.priceMin = price;
+                    }
+                    if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
+                        existing.sampleUnitPrice = it.unitPrice;
+                    }
+                    if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
+                        existing.sampleAmount = it.amountNum;
+                    }
+                    if (!existing.sampleQtyText && it.qty) {
+                        existing.sampleQtyText = it.qty;
+                    }
+                    if (it.type) {
+                        existing.type = it.type;
+                    }
+                    const lower = renamed.toLowerCase();
+                    if (lower.includes('בננה') || lower.includes(' adulte') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+                        existing.type = 'kg';
+                    }
+                    itemsMap.set(renamed, existing);
+                }
+            }
+            for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
+                const existing = itemsMap.get(name);
+                if (existing) {
+                    if (typeof meta.available === 'boolean') existing.available = meta.available;
+                    if (meta.type) existing.type = meta.type;
+                    if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
+                    itemsMap.set(name, existing);
+                }
+            }
             const lowestPriceMap = new Map();
             const itemTypeMap = new Map();
             for (const [renamed, info] of itemsMap.entries()) {
@@ -593,16 +670,12 @@ function renderLeftovers() {
                     itemTypeMap.set(renamed, info.type);
                 }
             }
-
-            // group into kgItems and unitItems (maps keyed by rounded price)
             const kgItems = new Map();
             const unitItems = new Map();
-
             function addToGroup(map, key, name) {
                 if (!map.has(key)) map.set(key, []);
                 map.get(key).push(name);
             }
-
             for (const [renamed, price] of lowestPriceMap.entries()) {
                 let type = itemTypeMap.get(renamed) || 'unit';
                 if (type === 'kg') {
@@ -611,7 +684,7 @@ function renderLeftovers() {
                     if (renamed.includes('לימון') || renamed.includes('קולורבי')) {
                         rounded = Math.max(3, rounded - 1);
                     }
-                    if (renamed.includes('בננה') || renamed.includes('תפו"א') || renamed.includes('תפוא')) {
+                    if (renamed.includes('בננה') || renamed.includes(' adulte') || renamed.includes('תפוא')) {
                         rounded = rounded + 1;
                     }
                     addToGroup(kgItems, rounded, renamed);
@@ -631,8 +704,6 @@ function renderLeftovers() {
                     }
                 }
             }
-
-            // Build result string
             let sb = '';
             sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
             sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
@@ -647,24 +718,17 @@ function renderLeftovers() {
             for (const k of sortedUnitKeys) {
                 sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
             }
-
-            // Show result pane and keep leftovers pane in sync
             document.getElementById('leftoversTextarea').value = sb;
             selectTab('leftoversTextTabPane');
             document.getElementById('leftoversResultPane').classList.remove('d-none');
-
-            // Send message to Telegram in background (disabled for now)
+            // Telegram send disabled
             // if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
             //     sendTelegramMessage(sb);
             // }
         });
-
-        // Back to Ariel button on result pane
         document.getElementById('backToAriel').addEventListener('click', () => {
             selectTab('toggleTabPane');
         });
-
-        // Copy & Go button: copy and open whatsapp group
         document.getElementById('copyLeftoversBtn').addEventListener('click', async () => {
             const ta = document.getElementById('leftoversTextarea');
             try {
@@ -675,8 +739,6 @@ function renderLeftovers() {
                 window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
             } catch (e) { alert('Copy failed: ' + e); }
         });
-
-
     }
 }
 
@@ -750,7 +812,6 @@ function gotoTextPage(selected = null) {
         });
     }
 }
-
 
 function showSearchTextPage(selected) {
     // selected = [{name, phone}]
