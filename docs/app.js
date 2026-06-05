@@ -194,6 +194,9 @@ async function processUploadedFile(f) {
 
 function renderLeftovers() {
     const container = document.getElementById('leftoversList');
+    // Ensure the list container is right-to-left and text starts at the right edge
+    container.style.direction = 'rtl';
+    container.style.textAlign = 'right';
     container.innerHTML = '';
     const items = new Map();
     function renameItem(n) { if (!n) return null; return n; }
@@ -205,31 +208,42 @@ function renderLeftovers() {
             items.get(name).samples.push(it);
         }
     }
-    // Build DOM list
+    // Build DOM list (RTL): show checkbox on the far right
     for (const [k, v] of items.entries()) {
         const div = document.createElement('div');
-        div.className = 'd-flex align-items-center mb-2';
-        // Make each item render RTL and place label before checkbox visually
+        div.className = 'mb-2';
+        // ensure RTL and right-aligned text
         div.style.direction = 'rtl';
-        div.style.display = 'flex';
-        div.style.flexDirection = 'row-reverse';
-        div.style.alignItems = 'center';
+        div.style.textAlign = 'right';
+        div.style.clear = 'both';
+
         const cb = document.createElement('input');
         cb.type = 'checkbox';
-        cb.className = 'avail-toggle form-check-input me-2';
+        cb.className = 'avail-toggle form-check-input';
         cb.setAttribute('data-name', encodeURIComponent(k));
         cb.checked = true;
+        // float the checkbox to the right edge so it's always on the right
+        cb.style.cssFloat = 'right';
+        cb.style.marginLeft = '8px';
+
+        const label = document.createElement('div');
+        label.innerText = k;
+        label.style.display = 'inline-block';
+        label.style.marginRight = '10px';
+        label.style.verticalAlign = 'middle';
+
         const badge = document.createElement('span');
-        badge.className = 'badge bg-secondary type-badge ms-2';
+        badge.className = 'badge bg-secondary type-badge';
         badge.setAttribute('data-name', encodeURIComponent(k));
         badge.setAttribute('data-type', v.type || 'unit');
         badge.innerText = (v.type || 'unit').toUpperCase();
-        const label = document.createElement('div');
-        label.innerText = k;
-        label.style.marginLeft = '8px';
-        label.style.textAlign = 'right';
-        div.appendChild(label);
+        badge.style.display = 'inline-block';
+        badge.style.marginRight = '8px';
+        badge.style.verticalAlign = 'middle';
+
+        // Append in natural reading order (label then badge), checkbox is floated to the right
         div.appendChild(cb);
+        div.appendChild(label);
         div.appendChild(badge);
         container.appendChild(div);
     }
