@@ -1,80 +1,30 @@
-// Simple client-side parser and UI for orders/customers.
-// Uses SheetJS (XLSX) and PapaParse (CSV) via CDN.
+// Minimal clean client-side app.js for Vegeterian UI
+// Supports: upload XLSX via SheetJS, basic parsing into state.orders,
+// search by name fragments, render leftovers with toggles, and generate leftovers text.
 
-// Telegram credentials (hardcoded)
-const TELEGRAM_TOKEN = '2070956586:AAH78qAvi0PV0O90_KHIzCtBrvP_CHw5KUk';
-const TELEGRAM_CHAT_ID = '740647763';
+const TELEGRAM_TOKEN = '';
+const TELEGRAM_CHAT_ID = '';
 
-const state = {
-    orders: [], // { customerName, rawPhone, phoneMasked, items: [{name, qty, price}] }
-    // persistent per-item overrides created by the UI: { [renamed]: { available?: boolean, type?: 'kg'|'unit', priceMin?: number } }
-    itemsMeta: {}
-};
+const state = { orders: [], itemsMeta: {} };
 
-// Logging utility
 function addLog(message, type = 'info') {
     const logDiv = document.getElementById('uploadLog');
     if (!logDiv) return;
-
     const timestamp = new Date().toLocaleTimeString();
     const prefix = `[${timestamp}]`;
     let logEntry = `${prefix} ${message}`;
-
-    if (type === 'error') {
-        logEntry = `❌ ${logEntry}`;
-    } else if (type === 'success') {
-        logEntry = `✓ ${logEntry}`;
-    } else if (type === 'warning') {
-        logEntry = `⚠ ${logEntry}`;
-    } else {
-        logEntry = `ℹ ${logEntry}`;
-    }
-
     const entry = document.createElement('div');
     entry.textContent = logEntry;
-    if (type === 'error') entry.style.color = '#dc3545';
-    if (type === 'success') entry.style.color = '#28a745';
-    if (type === 'warning') entry.style.color = '#ffc107';
-
-    // Replace "Logs will appear here" on first real log
-    const firstMsg = logDiv.querySelector('.text-muted');
-    if (firstMsg) firstMsg.remove();
-
+    logDiv.querySelector('.text-muted')?.remove();
     logDiv.appendChild(entry);
-    logDiv.scrollTop = logDiv.scrollHeight; // Auto-scroll to bottom
+    logDiv.scrollTop = logDiv.scrollHeight;
 }
 
-function loadItemsMeta() {
-    // Reset everything on page reload - no persistence
-    state.itemsMeta = {};
-    state.orders = [];
-}
-
-function saveItemsMeta() {
-    // No persistence - data resets on page reload
-}
-
-function saveOrdersData() {
-    // No persistence - data resets on page reload
-}
-
-function maskToLast6(phone) {
-    if (!phone) return '';
-    const digits = phone.replace(/\D/g, '');
-    return digits.length <= 6 ? digits : digits.slice(-6);
-}
-
-// Customers CSV upload removed; no handler needed
-
-// Sanitizers to normalize cell text from SheetJS and detect empty column-sets
 function sanitizeCellRaw(v) {
     if (v === null || v === undefined) return '';
     let s = String(v);
-    // normalize non-breaking spaces and RTL markers, normalize curly quotes to straight
     s = s.replace(/\u00A0/g, ' ').replace(/\u200F/g, '').replace(/[\u2018\u2019\u201C\u201D]/g, "'");
-    // replace multiple whitespace with single space and trim
     s = s.replace(/\s+/g, ' ').trim();
-    // strip surrounding double-quotes
     if (s === '""') return '';
     if (s.startsWith('"') && s.endsWith('"')) s = s.slice(1, -1).trim();
     return s;
@@ -86,6 +36,12 @@ function isEmptyColumnSet(row, colSet) {
     const b = sanitizeCellRaw(row[colSet[1]] || '');
     const c = sanitizeCellRaw(row[colSet[2]] || '');
     return !(a || b || c);
+}
+
+function maskToLast6(phone) {
+    if (!phone) return '';
+    const digits = phone.replace(/\D/g, '');
+    return digits.length <= 6 ? digits : digits.slice(-6);
 }
 
 function selectTab(tabId) {
@@ -109,75 +65,37 @@ function performSearch() {
     const fragments = raw.split(/\r?\n/).map(s => s.trim()).filter(Boolean).map(s => s.toLowerCase());
     const container = document.getElementById('searchResults');
     container.innerHTML = '';
-
-    // Use a map to avoid duplicate names; search orders only
-    const resultsMap = new Map();
+    const results = [];
     for (const o of state.orders) {
-        const name = o.customerName || '';
-        if (!name) continue;
-        const nameLower = name.toLowerCase();
-        // if fragments provided, match them; otherwise show all
-        if (fragments.length > 0) {
-            for (const f of fragments) {
-                if (nameLower.includes(f)) {
-                    if (!resultsMap.has(name)) {
-                        const phones = o.rawPhone || '';
-                        // Sum up total prices from all items (priceNum is already the total price per item)
-                        let total = 0;
-                        if (o.items && Array.isArray(o.items)) {
-                            for (const item of o.items) {
-                                const itemTotal = item.price ? parseFloat(String(item.price).replace(/[^0-9.,\-]/g, '').replace(',', '.')) : 0;
-                                if (!isNaN(itemTotal)) {
-                                    total += itemTotal;
-                                }
-                            }
-                        }
-                        resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders', total: total.toFixed(2) });
-                    }
-                    break;
+        if (!o.customerName) continue;
+        const nameLower = o.customerName.toLowerCase();
+        if (fragments.length === 0 || fragments.some(f => nameLower.includes(f))) {
+            let total = 0;
+            if (o.items && Array.isArray(o.items)) {
+                for (const it of o.items) {
+                    const t = parseFloat(String(it.price || '').replace(/[^0-9.,\-]/g, '').replace(',', '.')) || 0;
+                    total += t;
                 }
             }
-        } else {
-            if (!resultsMap.has(name)) {
-                const phones = o.rawPhone || '';
-                // Sum up total prices from all items (price is already the total price per item)
-                let total = 0;
-                if (o.items && Array.isArray(o.items)) {
-                    for (const item of o.items) {
-                        const itemTotal = item.price ? parseFloat(String(item.price).replace(/[^0-9.,\-]/g, '').replace(',', '.')) : 0;
-                        if (!isNaN(itemTotal)) {
-                            total += itemTotal;
-                        }
-                    }
-                }
-                resultsMap.set(name, { name: name, phones: phones, uploaded: 'Orders', total: total.toFixed(2) });
-            }
+            results.push({ name: o.customerName, phone: o.rawPhone || '', total: total.toFixed(2) });
         }
     }
-
-    if (resultsMap.size === 0) {
+    if (results.length === 0) {
         container.innerHTML = '<p class="text-muted">No customers found</p>';
-    } else {
-        const table = document.createElement('table');
-        table.className = 'table table-striped table-lg';
-        table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th><th class="h5">סהכ</th></tr></thead>';
-        const tbody = document.createElement('tbody');
-        for (const r of resultsMap.values()) {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name || '')}</td><td class="h5">${escapeHtml(r.phones || '')}</td><td class="h5">${r.total}</td>`;
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        container.appendChild(table);
+        return;
     }
-
-    // Show search results pane
-    document.getElementById('searchResultsPane').classList.remove('d-none');
-
-    // Also show text pane with the specific message for search results
-    if (resultsMap.size > 0) {
-        showSearchTextPage(Array.from(resultsMap.values()).map(r => ({ name: r.name, phone: r.phones })));
+    const table = document.createElement('table');
+    table.className = 'table table-striped table-lg';
+    table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th><th class="h5">סהכ</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    for (const r of results) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td class="h4" style="direction:rtl;text-align:right">${escapeHtml(r.name)}</td><td class="h5">${escapeHtml(r.phone)}</td><td class="h5">${r.total}</td>`;
+        tbody.appendChild(tr);
     }
+    table.appendChild(tbody);
+    container.appendChild(table);
+    showSearchTextPage(results.map(r => ({ name: r.name, phone: r.phone })));
 }
 
 function attachTabHandlers() {
@@ -190,91 +108,37 @@ function attachTabHandlers() {
 function attachFileHandlers() {
     const ordersFileInput = document.getElementById('ordersFile');
     const clearLogsBtn = document.getElementById('clearLogsBtn');
-
     if (ordersFileInput) {
         ordersFileInput.addEventListener('change', (e) => {
-            selectedFile = e.target.files[0];
-            if (selectedFile) {
-                addLog(`File selected: ${selectedFile.name}`, 'info');
+            const f = e.target.files[0];
+            if (f) {
+                addLog(`File selected: ${f.name}`);
                 clearLogsBtn.style.display = 'inline-block';
-                // Automatically process file immediately after selection
-                processUploadedFile(selectedFile);
+                processUploadedFile(f);
             }
         });
     }
-
     if (clearLogsBtn) {
         clearLogsBtn.addEventListener('click', () => {
             const logDiv = document.getElementById('uploadLog');
             logDiv.innerHTML = '<span class="text-muted">Logs will appear here...</span>';
             clearLogsBtn.style.display = 'none';
-            // Reset file input
             ordersFileInput.value = '';
-            selectedFile = null;
         });
     }
 }
 
-let selectedFile = null;
-
 async function processUploadedFile(f) {
     try {
-        addLog(`Starting file processing: ${f.name}`, 'info');
-        addLog(`File type: ${f.type}`, 'info');
-        addLog(`File size: ${(f.size / 1024).toFixed(2)} KB`, 'info');
-
-        // Clear persistent item overrides when uploading a new XLSX so old overrides don't carry over
-        state.itemsMeta = {};
-        saveItemsMeta();
-        addLog('Cleared previous item metadata', 'info');
-
-        addLog('Reading file as array buffer...', 'info');
-        let data;
-        try {
-            // Use FileReader API instead of File.arrayBuffer() for better browser compatibility
-            data = await new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    addLog('FileReader.onload triggered', 'info');
-                    resolve(e.target.result);
-                };
-                reader.onerror = (e) => {
-                    addLog(`FileReader error: ${reader.error?.message || reader.error}`, 'error');
-                    reject(reader.error);
-                };
-                reader.onprogress = (e) => {
-                    const percent = Math.round((e.loaded / e.total) * 100);
-                    addLog(`Reading... ${percent}%`, 'info');
-                };
-                addLog('FileReader.readAsArrayBuffer starting...', 'info');
-                reader.readAsArrayBuffer(f);
-            });
-        } catch (readError) {
-            const readMsg = readError?.message || readError?.name || 'Unknown file read error';
-            const readType = readError?.constructor?.name || 'Error';
-            addLog(`File read failed [${readType}]: ${readMsg}`, 'error');
-            if (readError?.code) addLog(`Error code: ${readError.code}`, 'error');
-            throw readError;
-        }
-        addLog('File read successfully', 'success');
-
-        addLog('Parsing XLSX file...', 'info');
+        addLog(`Processing ${f.name}`);
+        const data = await f.arrayBuffer();
         const wb = XLSX.read(data, { type: 'array' });
-        addLog(`Found ${wb.SheetNames.length} sheet(s): ${wb.SheetNames.join(', ')}`, 'info');
-
+        addLog(`Found ${wb.SheetNames.length} sheet(s)`);
         const sheet = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false });
-        addLog(`Parsed ${rows.length} rows from sheet`, 'info');
+        addLog(`Parsed ${rows.length} rows`);
 
-        // Parse similar to server logic: detect customer rows by containing 'איסוף: לוד'
-        // Note: the sheet contains two sets of columns (columns 0..2 and 4..6). We iterate both sets
-        // and treat each as an independent list (mirrors UploadOrdersExcelController.java behavior).
         const orders = [];
-        addLog('Starting to detect column sets...', 'info');
-
-        // Dynamically detect column-start indices that contain customer markers (איסוף: לוד).
-        // Some XLSX exports place the second set at different column indexes; this scans the sheet
-        // for any column that contains the customer marker and treats that as the start of a column set.
         const detectedStarts = new Set();
         for (let r = 0; r < rows.length; r++) {
             const row = rows[r];
@@ -284,255 +148,101 @@ async function processUploadedFile(f) {
                 if (cell.includes('איסוף: לוד')) detectedStarts.add(c);
             }
         }
-        // If no starts detected, fall back to the common layout (0 and 4)
-        if (detectedStarts.size === 0) {
-            addLog('No column markers found, using default layout (0, 4)', 'warning');
-            detectedStarts.add(0);
-            detectedStarts.add(4);
-        } else {
-            addLog(`Detected ${detectedStarts.size} column set(s) at indices: ${Array.from(detectedStarts).sort((a, b) => a - b).join(', ')}`, 'info');
-        }
-
+        if (detectedStarts.size === 0) { detectedStarts.add(0); detectedStarts.add(4); }
         const columnStarts = Array.from(detectedStarts).sort((a, b) => a - b);
-
         for (const start of columnStarts) {
             const colSet = [start, start + 1, start + 2];
-            addLog(`Processing column set at index ${start}...`, 'info');
             let current = null;
             for (let r = 0; r < rows.length; r++) {
                 const row = rows[r];
                 if (!row || row.length === 0) continue;
-                // skip fully empty column-sets (mimics clearing/invisible columns on server)
                 if (isEmptyColumnSet(row, colSet)) continue;
                 const first = sanitizeCellRaw(row[colSet[0]] || '');
                 if (first.includes('איסוף: לוד')) {
                     const parts = first.split('איסוף: לוד');
                     const name = (parts[0] || '').trim();
                     const rawPhone = (parts[1] || '').trim();
-                    const phoneMasked = maskToLast6(rawPhone);
-                    current = { customerName: name, rawPhone, phoneMasked, items: [] };
+                    current = { customerName: name, rawPhone, phoneMasked: maskToLast6(rawPhone), items: [] };
                     orders.push(current);
-                    addLog(`Found customer: ${name || '(unnamed)'} | Phone: ${rawPhone}`, 'info');
                 } else if (current) {
-                    // product rows: attempt to read product name and qty from the current column set
                     const product = sanitizeCellRaw(row[colSet[0]] || '');
                     const quantity = sanitizeCellRaw(row[colSet[1]] || '');
                     const price = sanitizeCellRaw(row[colSet[2]] || '');
-                    if (product && product !== 'מוצר') {
-                        // Skip grand total rows
-                        if (product.startsWith('סך')) {
-                            continue;
-                        }
-
-                        // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
-                        const qtyText = quantity || '';
-                        const isKg = /ק.?ג/.test(qtyText);
-                        const isUnit = /יח/.test(qtyText);
-                        // parse numeric amount and price
-                        const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-                        const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
-
-                        // allow items with price even if quantity is missing (e.g., תוספות)
-                        if (isNaN(priceNum)) {
-                            continue;
-                        }
-
-                        let unitPrice = NaN;
-                        if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
-                            unitPrice = priceNum / amountNum;
-                        } else {
-                            unitPrice = isNaN(priceNum) ? NaN : priceNum;
-                        }
-                        const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
-                        current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
-                        addLog(`  └─ Item: ${product} | Qty: ${quantity} | Price: ${price}`, 'info');
-                    }
-                }
-            }
-            if (trimmed.startsWith('סך')) return null;
-            const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
-            const split = n.trim().split(/\s+/);
-            const firstWord = split.length > 0 ? split[0] : '';
-            if (itemName.includes('תפוח') && !itemName.includes('אדמה')) return 'תפוח-עץ';
-            if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
-            if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
-            if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
-            if (itemName.includes("צ'ילי")) return "צ'ילי";
-            if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-            if (itemName.includes(' adulte')) return ' adulte';
-            if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
-            if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
-            if (itemName.includes('לאליק')) return 'חסה-לאליק';
-            if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
-            if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
-            if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
-            if (itemName.includes('שום טרי')) return 'שום-ישראלי';
-            if (itemName.includes('שום קלוף')) return null;
-            if (itemName.includes('שום יבש')) return 'שום-רביעייה';
-            if (itemName.includes('שרי')) return 'עגבנית-שרי';
-            if (itemName.includes('ענב לבן')) return 'ענבים';
-            if (itemName.includes('קלחי')) return 'תירס';
-            return firstWord;
-        }
-        function parseFloatSafe(s) {
-            if (!s) return NaN;
-            const cleaned = String(s).replace(/[,₪]/g, '').replace(/[^0-9.\-]/g, '');
-            const v = parseFloat(cleaned);
-            return isNaN(v) ? NaN : v;
-        }
-        for (const o of state.orders) {
-            for (const it of o.items) {
-                const original = it.name || '';
-                const renamed = renameItemJS(original);
-                if (!renamed) continue;
-                const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
-                if (price === 0) continue;
-                const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
-                existing.originals.add(original);
-                if (!isNaN(price)) {
-                    if (price < existing.priceMin) existing.priceMin = price;
-                }
-                if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
-                    existing.sampleUnitPrice = it.unitPrice;
-                }
-                if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
-                    existing.sampleAmount = it.amountNum;
-                }
-                if (!existing.sampleQtyText && it.qty) {
-                    existing.sampleQtyText = it.qty;
-                }
-                if (it.type) {
-                    existing.type = it.type;
-                }
-                const lower = renamed.toLowerCase();
-                if (lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
-                    existing.type = 'kg';
-                }
-                itemsMap.set(renamed, existing);
-            }
-        }
-        for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
-            const existing = itemsMap.get(name);
-            if (existing) {
-                if (typeof meta.available === 'boolean') existing.available = meta.available;
-                if (meta.type) existing.type = meta.type;
-                if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
-                itemsMap.set(name, existing);
-            }
-        }
-        const lowestPriceMap = new Map();
-        const itemTypeMap = new Map();
-        for (const [renamed, info] of itemsMap.entries()) {
-            if (!info.available) continue;
-            const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
-            if (isNaN(price) || price === 0) continue;
-            if (lowestPriceMap.has(renamed)) {
-                if (price < lowestPriceMap.get(renamed)) {
-                    lowestPriceMap.set(renamed, price);
-                    itemTypeMap.set(renamed, info.type);
-                }
-            } else {
-                lowestPriceMap.set(renamed, price);
-                itemTypeMap.set(renamed, info.type);
-            }
-        }
-        const kgItems = new Map();
-        const unitItems = new Map();
-        function addToGroup(map, key, name) {
-            if (!map.has(key)) map.set(key, []);
-            map.get(key).push(name);
-        }
-        for (const [renamed, price] of lowestPriceMap.entries()) {
-            let type = itemTypeMap.get(renamed) || 'unit';
-            if (type === 'kg') {
-                let rounded = Math.floor(price);
-                if (rounded < 3) rounded = 3;
-                if (renamed.includes('לימון') || renamed.includes('קולורבי')) {
-                    rounded = Math.max(3, rounded - 1);
-                }
-                if (renamed.includes('בננה') || renamed.includes(' adulte') || renamed.includes('תפוא')) {
-                    rounded = rounded + 1;
-                }
-                addToGroup(kgItems, rounded, renamed);
-            } else {
-                let rounded = Math.ceil(price);
-                if (renamed.includes('אגס')) {
-                    rounded = Math.floor(price / 1.5);
-                    type = 'kg';
-                } else if (renamed.includes('עגבנית-שרי') || renamed === 'גזר') {
-                    rounded = Math.floor(price / 1.1);
-                    type = 'kg';
-                }
-                if (type === 'kg') {
-                    addToGroup(kgItems, rounded, renamed);
-                } else {
-                    addToGroup(unitItems, rounded, renamed);
+                    if (!product || product === 'מוצר') continue;
+                    if (product.startsWith('סך')) continue;
+                    const amountNum = parseFloat(String(quantity).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                    const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                    if (isNaN(priceNum)) continue;
+                    let unitPrice = NaN;
+                    if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) unitPrice = priceNum / amountNum;
+                    else unitPrice = isNaN(priceNum) ? NaN : priceNum;
+                    const isKg = /ק.?ג/.test(quantity || '');
+                    const isUnit = /יח/.test(quantity || '');
+                    const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
+                    current.items.push({ name: product, qty: quantity, price: price, amountNum: isNaN(amountNum) ? null : amountNum, unitPrice: isNaN(unitPrice) ? null : unitPrice, type: itemType });
                 }
             }
         }
-        let sb = '';
-        sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
-        sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
-        sb += "המחירים לק\"ג:\n";
-        const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
-        for (const k of sortedKgKeys) {
-            sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
-        }
-        sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
-        sb += '\n' + "המחירים ליחידה:\n";
-        const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
-        for (const k of sortedUnitKeys) {
-            sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
-        }
-        document.getElementById('leftoversTextarea').value = sb;
-        selectTab('leftoversTextTabPane');
-        document.getElementById('leftoversResultPane').classList.remove('d-none');
-        // Telegram send disabled
-        // if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
-        //     sendTelegramMessage(sb);
-        // }
-    });
-
-}
+        state.orders = orders;
+        addLog(`Loaded ${orders.length} orders`);
+        renderLeftovers();
+    } catch (err) {
+        addLog('Upload error: ' + err, 'error');
+        console.error(err);
+    }
 }
 
-function sendTelegramMessage(message) {
-    // Send message to Telegram using client-side API call
-    const url = `https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage?chat_id=${TELEGRAM_CHAT_ID}&text=${encodeURIComponent(message)}`;
-
-    // Use fetch silently in background, don't block UI
-    fetch(url, { method: 'GET' })
-        .then(response => {
-            if (response.ok) {
-                console.log('Telegram message sent successfully');
-            } else {
-                console.warn('Failed to send Telegram message:', response.statusText);
-            }
-        })
-        .catch(error => {
-            console.warn('Error sending Telegram message:', error);
-        });
+function renderLeftovers() {
+    const container = document.getElementById('leftoversList');
+    container.innerHTML = '';
+    const items = new Map();
+    function renameItem(n) { if (!n) return null; return n; }
+    for (const o of state.orders) {
+        for (const it of o.items) {
+            const name = renameItem(it.name || '');
+            if (!name) continue;
+            if (!items.has(name)) items.set(name, { name, samples: [], type: it.type || 'unit' });
+            items.get(name).samples.push(it);
+        }
+    }
+    // Build DOM list
+    for (const [k, v] of items.entries()) {
+        const div = document.createElement('div');
+        div.className = 'd-flex align-items-center mb-2';
+        // Make each item render RTL and place label before checkbox visually
+        div.style.direction = 'rtl';
+        div.style.display = 'flex';
+        div.style.flexDirection = 'row-reverse';
+        div.style.alignItems = 'center';
+        const cb = document.createElement('input');
+        cb.type = 'checkbox';
+        cb.className = 'avail-toggle form-check-input me-2';
+        cb.setAttribute('data-name', encodeURIComponent(k));
+        cb.checked = true;
+        const badge = document.createElement('span');
+        badge.className = 'badge bg-secondary type-badge ms-2';
+        badge.setAttribute('data-name', encodeURIComponent(k));
+        badge.setAttribute('data-type', v.type || 'unit');
+        badge.innerText = (v.type || 'unit').toUpperCase();
+        const label = document.createElement('div');
+        label.innerText = k;
+        label.style.marginLeft = '8px';
+        label.style.textAlign = 'right';
+        div.appendChild(label);
+        div.appendChild(cb);
+        div.appendChild(badge);
+        container.appendChild(div);
+    }
 }
 
-// Append action log messages to textarea
-function appendActionLog(msg) {
-    const ta = document.getElementById('actionsLog');
-    if (!ta) return;
-    const ts = new Date().toLocaleTimeString();
-    ta.value = `${ts} ${msg}\n` + ta.value;
-}
-
-// Apply current DOM toggles/type badges into state.itemsMeta (persist in-memory)
 function applyToggleStates() {
     const container = document.getElementById('leftoversList');
     if (!container) return;
     const checkboxes = container.querySelectorAll('.avail-toggle');
     checkboxes.forEach(cb => {
         const nm = decodeURIComponent(cb.getAttribute('data-name'));
-        const checked = !!cb.checked;
         state.itemsMeta[nm] = state.itemsMeta[nm] || {};
-        state.itemsMeta[nm].available = checked;
-        appendActionLog(`Toggle: ${nm} available=${checked}`);
+        state.itemsMeta[nm].available = !!cb.checked;
     });
     const badges = container.querySelectorAll('.type-badge');
     badges.forEach(b => {
@@ -540,15 +250,13 @@ function applyToggleStates() {
         const type = b.getAttribute('data-type');
         state.itemsMeta[nm] = state.itemsMeta[nm] || {};
         state.itemsMeta[nm].type = type;
-        appendActionLog(`Type: ${nm} -> ${type}`);
     });
-    saveItemsMeta();
 }
 
-// Build leftovers text from state.orders and state.itemsMeta
 function buildLeftoversText() {
-    // Build itemsMap similar to renderLeftovers
+    // Build items map and canonicalize names
     const itemsMap = new Map();
+
     function renameItemJS(itemName) {
         if (!itemName) return null;
         const trimmed = itemName.trim();
@@ -563,7 +271,8 @@ function buildLeftoversText() {
         if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
         if (itemName.includes("צ'ילי")) return "צ'ילי";
         if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-        if (itemName.includes('תפו"א למיקרו')) return 'תפו"א-למיקרו';
+        if (itemName.includes('תפו"א') || itemName.includes("תפו'א")) return "תפו" + 'א';
+        if (itemName.includes('תפו') && firstWord.includes('תפו')) return 'תפו"א';
         if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
         if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
         if (itemName.includes('לאליק')) return 'חסה-לאליק';
@@ -576,44 +285,39 @@ function buildLeftoversText() {
         if (itemName.includes('שרי')) return 'עגבנית-שרי';
         if (itemName.includes('ענב לבן')) return 'ענבים';
         if (itemName.includes('קלחי')) return 'תירס';
-        return firstWord;
+        return firstWord || itemName;
     }
+
     function parseFloatSafe(s) {
         if (!s) return NaN;
         const cleaned = String(s).replace(/[,\s₪]/g, '').replace(/[^0-9.\-]/g, '');
         const v = parseFloat(cleaned);
         return isNaN(v) ? NaN : v;
     }
+
     for (const o of state.orders) {
         for (const it of o.items) {
             const original = it.name || '';
             const renamed = renameItemJS(original);
             if (!renamed) continue;
             const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
-            if (price === 0) continue;
-            const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
+            if (isNaN(price) || price === 0) continue;
+            const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: it.type || 'unit', available: true };
             existing.originals.add(original);
-            if (!isNaN(price)) {
-                if (price < existing.priceMin) existing.priceMin = price;
-            }
-            if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
-                existing.sampleUnitPrice = it.unitPrice;
-            }
-            if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
-                existing.sampleAmount = it.amountNum;
-            }
-            if (!existing.sampleQtyText && it.qty) {
-                existing.sampleQtyText = it.qty;
-            }
+            if (!isNaN(price) && price < existing.priceMin) existing.priceMin = price;
+            if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) existing.sampleUnitPrice = it.unitPrice;
+            if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) existing.sampleAmount = it.amountNum;
+            if (!existing.sampleQtyText && it.qty) existing.sampleQtyText = it.qty;
             if (it.type) existing.type = it.type;
             const lower = renamed.toLowerCase();
-            if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+            if (lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
                 existing.type = 'kg';
             }
             itemsMap.set(renamed, existing);
         }
     }
-    // Apply saved meta (if any)
+
+    // Apply saved UI meta
     for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
         const existing = itemsMap.get(name);
         if (existing) {
@@ -623,267 +327,117 @@ function buildLeftoversText() {
             itemsMap.set(name, existing);
         }
     }
-    // Now build grouped text
+
+    // pick lowest prices and group by type
     const lowestPriceMap = new Map();
     const itemTypeMap = new Map();
     for (const [renamed, info] of itemsMap.entries()) {
         if (!info.available) continue;
         const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
         if (isNaN(price) || price === 0) continue;
-        if (lowestPriceMap.has(renamed)) {
-            if (price < lowestPriceMap.get(renamed)) {
-                lowestPriceMap.set(renamed, price);
-                itemTypeMap.set(renamed, info.type);
-            }
-        } else {
+        if (!lowestPriceMap.has(renamed) || price < lowestPriceMap.get(renamed)) {
             lowestPriceMap.set(renamed, price);
-            itemTypeMap.set(renamed, info.type);
+            itemTypeMap.set(renamed, info.type || 'unit');
         }
     }
+
     const kgItems = new Map();
     const unitItems = new Map();
     function addToGroup(map, key, name) { if (!map.has(key)) map.set(key, []); map.get(key).push(name); }
+
     for (const [renamed, price] of lowestPriceMap.entries()) {
         let type = itemTypeMap.get(renamed) || 'unit';
         if (type === 'kg') {
-            let rounded = Math.floor(price);
-            if (rounded < 3) rounded = 3;
-            if (renamed.includes('לימון') || renamed.includes('קולורבי')) rounded = Math.max(3, rounded - 1);
-            if (renamed.includes('בננה') || renamed.includes('תפו"א') || renamed.includes('תפוא')) rounded = rounded + 1;
+            // Round down for kg items
+            const rounded = Math.floor(price);
             addToGroup(kgItems, rounded, renamed);
         } else {
-            let rounded = Math.ceil(price);
-            if (renamed.includes('אגס')) { rounded = Math.floor(price / 1.5); type = 'kg'; }
-            else if (renamed.includes('עגבנית-שרי') || renamed === 'גזר') { rounded = Math.floor(price / 1.1); type = 'kg'; }
-            if (type === 'kg') addToGroup(kgItems, rounded, renamed); else addToGroup(unitItems, rounded, renamed);
+            // Round up for unit items
+            const rounded = Math.ceil(price);
+            addToGroup(unitItems, rounded, renamed);
         }
     }
+
+    // Compose output matching requested format
     let sb = '';
     sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
     sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
     sb += "המחירים לק\"ג:\n";
+
     const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
-    for (const k of sortedKgKeys) sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
-    sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
-    sb += '\n' + "המחירים ליחידה:\n";
+    for (const k of sortedKgKeys) {
+        const names = kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he'));
+        sb += names.join(' / ') + ' ' + k + '\n';
+    }
+
+    sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n\n";
+    sb += "המחירים ליחידה:\n";
+
     const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
-    for (const k of sortedUnitKeys) sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
+    for (const k of sortedUnitKeys) {
+        const names = unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he'));
+        sb += names.join(' / ') + ' ' + k + '\n';
+    }
+
     return sb;
 }
 
-// Initialize centralized leftover UI actions (attach once)
 function initLeftoversActions() {
     const container = document.getElementById('leftoversList');
-    const tabLeftovers = document.getElementById('tab-leftovers');
-    const setAllAvailableBtn = document.getElementById('setAllAvailable');
-    const setAllUnavailableBtn = document.getElementById('setAllUnavailable');
-    const setAllKgAvailableBtn = document.getElementById('setAllKgAvailable');
-    const submitBtn = document.getElementById('submitLeftovers');
-    const backBtn = document.getElementById('backToAriel');
-    const copyBtn = document.getElementById('copyLeftoversBtn');
-
-    // Delegate type-badge clicks to just toggle UI (no state change yet)
-    if (container) {
-        container.addEventListener('click', (e) => {
-            const b = e.target.closest('.type-badge');
-            if (!b) return;
-            const curr = b.getAttribute('data-type');
-            const next = curr === 'kg' ? 'unit' : 'kg';
-            b.setAttribute('data-type', next);
-            b.innerText = next.toUpperCase();
-            appendActionLog(`UI Type toggled: ${decodeURIComponent(b.getAttribute('data-name'))} -> ${next}`);
+    document.getElementById('setAllAvailable').addEventListener('click', () => {
+        document.querySelectorAll('#leftoversList .avail-toggle').forEach(cb => cb.checked = true);
+    });
+    document.getElementById('setAllUnavailable').addEventListener('click', () => {
+        document.querySelectorAll('#leftoversList .avail-toggle').forEach(cb => cb.checked = false);
+    });
+    document.getElementById('setAllKgAvailable').addEventListener('click', () => {
+        document.querySelectorAll('#leftoversList .type-badge').forEach(b => {
+            const nm = b.getAttribute('data-name');
+            if (b.getAttribute('data-type') === 'kg') {
+                const cb = document.querySelector(`#leftoversList .avail-toggle[data-name="${nm}"]`);
+                if (cb) cb.checked = true;
+            }
         });
-    }
-
-    if (setAllAvailableBtn) {
-        setAllAvailableBtn.addEventListener('click', () => {
-            const checks = document.querySelectorAll('#leftoversList .avail-toggle');
-            checks.forEach(cb => cb.checked = true);
-            appendActionLog('Set all UI toggles to available');
-        });
-    }
-    if (setAllUnavailableBtn) {
-        setAllUnavailableBtn.addEventListener('click', () => {
-            const checks = document.querySelectorAll('#leftoversList .avail-toggle');
-            checks.forEach(cb => cb.checked = false);
-            appendActionLog('Set all UI toggles to unavailable');
-        });
-    }
-    if (setAllKgAvailableBtn) {
-        setAllKgAvailableBtn.addEventListener('click', () => {
-            const badges = document.querySelectorAll('#leftoversList .type-badge');
-            badges.forEach(b => {
-                const nm = b.getAttribute('data-name');
-                if (b.getAttribute('data-type') === 'kg') {
-                    const cb = document.querySelector(`#leftoversList .avail-toggle[data-name="${nm}"]`);
-                    if (cb) cb.checked = true;
-                }
-            });
-            appendActionLog('Set KG items UI toggles to available');
-        });
-    }
-
-    // Submit: apply UI toggles to state, build text, show it
-    if (submitBtn) {
-        submitBtn.addEventListener('click', () => {
-            applyToggleStates();
-            const sb = buildLeftoversText();
-            document.getElementById('leftoversTextarea').value = sb;
-            selectTab('leftoversTextTabPane');
-            document.getElementById('leftoversResultPane').classList.remove('d-none');
-            appendActionLog('Submit clicked - generated leftovers text');
-        });
-    }
-
-    // When clicking the tab for leftovers text, apply toggles and generate text as well
-    if (tabLeftovers) {
-        tabLeftovers.addEventListener('click', () => {
-            applyToggleStates();
-            const sb = buildLeftoversText();
-            document.getElementById('leftoversTextarea').value = sb;
-            appendActionLog('Tab Leftovers clicked - applied UI toggles and generated text');
-        });
-    }
-
-    if (backBtn) {
-        backBtn.addEventListener('click', () => {
-            selectTab('toggleTabPane');
-        });
-    }
-    if (copyBtn) {
-        copyBtn.addEventListener('click', async () => {
-            const ta = document.getElementById('leftoversTextarea');
-            try {
-                await navigator.clipboard.writeText(ta.value);
-                const orig = copyBtn.innerText;
-                copyBtn.innerText = 'Copied!';
-                setTimeout(() => copyBtn.innerText = orig, 1400);
-                window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
-                appendActionLog('Copied leftovers text and opened WhatsApp');
-            } catch (e) { alert('Copy failed: ' + e); }
-        });
-    }
+    });
+    document.getElementById('submitLeftovers').addEventListener('click', () => {
+        applyToggleStates();
+        const sb = buildLeftoversText();
+        document.getElementById('leftoversTextarea').value = sb;
+        selectTab('leftoversTextTabPane');
+    });
+    document.getElementById('tab-leftovers').addEventListener('click', () => {
+        applyToggleStates();
+        const sb = buildLeftoversText();
+        document.getElementById('leftoversTextarea').value = sb;
+    });
 }
 
 function gotoTextPage(selected = null) {
-    // selected = [{name, phone}]
     selectTab('searchTabPane');
     document.getElementById('searchResultsPane').classList.add('d-none');
     document.getElementById('textPane').classList.remove('d-none');
     const container = document.getElementById('textsList');
     container.innerHTML = '';
-
     const list = selected || state.orders.map(o => ({ name: o.customerName, phone: o.rawPhone }));
     for (const s of list) {
         const div = document.createElement('div');
         div.className = 'card mb-2';
-        const message = `שלום ${s.name || ''} - יש לך הודעה בנוגע להזמנה. אנא בדוק.`; // short sample in Hebrew
-        div.innerHTML = `
-      <div class="card-body">
-        <h5>${escapeHtml(s.name)}</h5>
-        <p><strong>Phone (raw):</strong> ${escapeHtml(s.phone || '')}</p>
-        <label>Message</label>
-        <textarea class="form-control msg-text mb-2">${escapeHtml(message)}</textarea>
-        <div>
-          <button class="btn btn-sm btn-primary open-whatsapp">Open WhatsApp</button>
-          <button class="btn btn-sm btn-outline-secondary copy-msg">Copy message</button>
-        </div>
-      </div>
-    `;
+        const message = `שלום ${s.name || ''} - יש לך הודעה בנוגע להזמנה.`;
+        div.innerHTML = `<div class="card-body"><h5>${escapeHtml(s.name)}</h5><p><strong>Phone (raw):</strong> ${escapeHtml(s.phone || '')}</p><label>Message</label><textarea class="form-control msg-text mb-2">${escapeHtml(message)}</textarea></div>`;
         container.appendChild(div);
-        const openBtn = div.getElementsByClassName('open-whatsapp')[0];
-        const copyBtn = div.getElementsByClassName('copy-msg')[0];
-        const ta = div.getElementsByClassName('msg-text')[0];
-        openBtn.addEventListener('click', () => {
-            // Use raw phone if available; if multiple numbers separated by space, take the first one
-            const phoneParts = (s.phone || '').split(/\s+/);
-            const firstPhone = phoneParts[0] || '';
-            const digits = firstPhone.replace(/\D/g, '');
-            const text = ta.value;
-            const encoded = encodeURIComponent(text);
-            // If digits length looks like phone, use wa.me; otherwise open web.whatsapp with text only
-            if (digits.length >= 6) {
-                // wa.me requires international format; user may need to adjust
-                const url = `https://wa.me/${digits}?text=${encoded}`;
-                window.open(url, '_blank');
-            } else {
-                // open WhatsApp web send text
-                const url = `https://web.whatsapp.com/send?text=${encoded}`;
-                window.open(url, '_blank');
-            }
-        });
-        copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(ta.value).then(() => alert('Copied'));
-        });
     }
 }
 
-function showSearchTextPage(selected) {
-    // selected = [{name, phone}]
-    document.getElementById('textPane').classList.remove('d-none');
-    const container = document.getElementById('textsList');
-    container.innerHTML = '';
+function showSearchTextPage(selected) { gotoTextPage(selected); }
 
-    const list = selected || [];
-    for (const s of list) {
-        const div = document.createElement('div');
-        div.className = 'card mb-2';
-        const message = 'היי, האם אתם מעוניינים שנדאג לכם לאריזה?\nhttps://links.payboxapp.com/S6BPN7Ap4Yb';
-        div.innerHTML = `
-      <div class="card-body">
-        <h5>${escapeHtml(s.name)}</h5>
-        <p><strong>Phone (raw):</strong> ${escapeHtml(s.phone || '')}</p>
-        <label>Message</label>
-        <textarea class="form-control msg-text mb-2">${escapeHtml(message)}</textarea>
-        <div>
-          <button class="btn btn-sm btn-primary open-whatsapp">Open WhatsApp</button>
-          <button class="btn btn-sm btn-outline-secondary copy-msg">Copy message</button>
-        </div>
-      </div>
-    `;
-        container.appendChild(div);
-        const openBtn = div.getElementsByClassName('open-whatsapp')[0];
-        const copyBtn = div.getElementsByClassName('copy-msg')[0];
-        const ta = div.getElementsByClassName('msg-text')[0];
-        openBtn.addEventListener('click', () => {
-            // Use raw phone if available; if multiple numbers separated by space, take the first one
-            const phoneParts = (s.phone || '').split(/\s+/);
-            const firstPhone = phoneParts[0] || '';
-            const digits = firstPhone.replace(/\D/g, '');
-            const text = ta.value;
-            const encoded = encodeURIComponent(text);
-            // If digits length looks like phone, use wa.me; otherwise open web.whatsapp with text only
-            if (digits.length >= 6) {
-                // wa.me requires international format; user may need to adjust
-                const url = `https://wa.me/${digits}?text=${encoded}`;
-                window.open(url, '_blank');
-            } else {
-                // open WhatsApp web send text
-                const url = `https://web.whatsapp.com/send?text=${encoded}`;
-                window.open(url, '_blank');
-            }
-        });
-        copyBtn.addEventListener('click', () => {
-            navigator.clipboard.writeText(ta.value).then(() => alert('Copied'));
-        });
-    }
-}
-
-document.getElementById('searchBtn').addEventListener('click', () => {
-    performSearch();
-});
-
-document.getElementById('searchBackBtn').addEventListener('click', () => {
-    selectTab('toggleTabPane');
-});
+document.getElementById('searchBtn').addEventListener('click', () => performSearch());
+document.getElementById('searchBackBtn').addEventListener('click', () => selectTab('toggleTabPane'));
 
 function initializeApp() {
-    loadItemsMeta();
     attachTabHandlers();
     attachFileHandlers();
-    renderLeftovers();
-    // initialize leftover UI actions (attach centralized handlers)
     initLeftoversActions();
+    renderLeftovers();
 }
 
 if (document.readyState === 'loading') {
@@ -891,5 +445,8 @@ if (document.readyState === 'loading') {
 } else {
     initializeApp();
 }
+
+// Expose runtime state for debugging/tests
+try { window.state = state; } catch (e) { /* non-browser or restricted env */ }
 
 function escapeHtml(s) { if (!s) return ''; return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
