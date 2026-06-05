@@ -323,6 +323,7 @@ async function processUploadedFile(f) {
                         if (product.startsWith('סך')) {
                             continue;
                         }
+
                         // detect unit type by quantity text: if contains ק"ג or קג -> kg, if contains 'יח' -> unit
                         const qtyText = quantity || '';
                         const isKg = /ק.?ג/.test(qtyText);
@@ -331,18 +332,15 @@ async function processUploadedFile(f) {
                         const amountNum = parseFloat(String(qtyText).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                         const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
 
-                        // ignore items that have no price (like category headers)
-                        // but allow items with price but no quantity (like תוספות/additions)
+                        // allow items with price even if quantity is missing (e.g., תוספות)
                         if (isNaN(priceNum)) {
                             continue;
                         }
 
                         let unitPrice = NaN;
                         if (!isNaN(priceNum) && !isNaN(amountNum) && amountNum !== 0) {
-                            // total price divided by amount -> unit price
                             unitPrice = priceNum / amountNum;
                         } else {
-                            // fallback: try to parse price as unit price directly
                             unitPrice = isNaN(priceNum) ? NaN : priceNum;
                         }
                         const itemType = isKg ? 'kg' : (isUnit ? 'unit' : undefined);
@@ -351,395 +349,151 @@ async function processUploadedFile(f) {
                     }
                 }
             }
+            if (trimmed.startsWith('סך')) return null;
+            const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
+            const split = n.trim().split(/\s+/);
+            const firstWord = split.length > 0 ? split[0] : '';
+            if (itemName.includes('תפוח') && !itemName.includes('אדמה')) return 'תפוח-עץ';
+            if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
+            if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
+            if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
+            if (itemName.includes("צ'ילי")) return "צ'ילי";
+            if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
+            if (itemName.includes(' adulte')) return ' adulte';
+            if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
+            if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
+            if (itemName.includes('לאליק')) return 'חסה-לאליק';
+            if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
+            if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
+            if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
+            if (itemName.includes('שום טרי')) return 'שום-ישראלי';
+            if (itemName.includes('שום קלוף')) return null;
+            if (itemName.includes('שום יבש')) return 'שום-רביעייה';
+            if (itemName.includes('שרי')) return 'עגבנית-שרי';
+            if (itemName.includes('ענב לבן')) return 'ענבים';
+            if (itemName.includes('קלחי')) return 'תירס';
+            return firstWord;
         }
-        state.orders = orders;
-        saveOrdersData();
-        addLog(`Successfully parsed ${orders.length} order(s)`, 'success');
-        renderLeftovers();
-        performSearch();
-    } catch (error) {
-        const errorMsg = error?.message || error?.toString?.() || 'Unknown error occurred';
-        const errorName = error?.name || 'Error';
-        addLog(`ERROR [${errorName}]: ${errorMsg}`, 'error');
-        if (error?.stack) {
-            addLog(`Stack trace: ${error.stack}`, 'error');
+        function parseFloatSafe(s) {
+            if (!s) return NaN;
+            const cleaned = String(s).replace(/[,₪]/g, '').replace(/[^0-9.\-]/g, '');
+            const v = parseFloat(cleaned);
+            return isNaN(v) ? NaN : v;
         }
-        console.error('File processing error:', error);
-        alert('Error processing file: ' + errorMsg);
-    }
-}
-
-function renderLeftovers() {
-    const container = document.getElementById('leftoversList');
-    container.innerHTML = '';
-    if (state.orders.length === 0) {
-        container.innerHTML = '<p class="text-muted">No data parsed yet. Upload files to start.</p>';
-        return;
-    }
-
-    // Build items map from parsed orders: renamedName -> { originalNames: Set, priceMin: float, type: 'kg'|'unit', available: true }
-    const itemsMap = new Map();
-    function renameItemJS(itemName) {
-        if (!itemName) return null;
-        // Ignore items explicitly named or starting with 'תוספות' or 'סך' (total rows)
-        const trimmed = itemName.trim();
-        if (trimmed.startsWith('תוספות')) return null;
-        if (trimmed.startsWith('סך')) return null;
-        const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
-        const split = n.trim().split(/\s+/);
-        const firstWord = split.length > 0 ? split[0] : '';
-        if (itemName.includes('תפוח')) return 'תפוח-עץ';
-        if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
-        if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
-        if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
-        if (itemName.includes("צ'ילי")) return "צ'ילי";
-        if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-        if (itemName.includes(' adulte')) return ' adulte';
-        if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
-        if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
-        if (itemName.includes('לאליק')) return 'חסה-לאליק';
-        if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
-        if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
-        if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
-        if (itemName.includes('שום טרי')) return 'שום-ישראלי';
-        if (itemName.includes('שום קלוף')) return null;
-        if (itemName.includes('שום יבש')) return 'שום-רביעייה';
-        if (itemName.includes('שרי')) return 'עגבנית-שרי';
-        if (itemName.includes('ענב לבן')) return 'ענבים';
-        if (itemName.includes('קלחי')) return 'תירס';
-        return firstWord;
-    }
-
-    function parseFloatSafe(s) {
-        if (!s) return NaN;
-        const cleaned = String(s).replace(/[,\s₪]/g, '').replace(/[^0-9.\-]/g, '');
-        const v = parseFloat(cleaned);
-        return isNaN(v) ? NaN : v;
-    }
-
-    for (const o of state.orders) {
-        for (const it of o.items) {
-            const original = it.name || '';
-            const renamed = renameItemJS(original);
-            if (!renamed) continue;
-            // prefer unitPrice parsed from the line (totalPrice/amount) if available
-            const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
-            // skip items with price 0
-            if (price === 0) continue;
-            const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
-            existing.originals.add(original);
-            if (!isNaN(price)) {
-                if (price < existing.priceMin) existing.priceMin = price;
-            }
-            // keep one example amount/unitPrice/qtyText for display purposes
-            if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
-                existing.sampleUnitPrice = it.unitPrice;
-            }
-            if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
-                existing.sampleAmount = it.amountNum;
-            }
-            if (!existing.sampleQtyText && it.qty) {
-                existing.sampleQtyText = it.qty;
-            }
-            // heuristic: certain names likely kg
-            // prefer explicit type from parsed item (amount column), otherwise fall back to heuristics
-            if (it.type) {
-                existing.type = it.type;
-            }
-            // always apply heuristic for specific items (override parsed type if needed)
-            const lower = renamed.toLowerCase();
-            if (lower.includes('בננה') || lower.includes(' adulte') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
-                existing.type = 'kg';
-            }
-            itemsMap.set(renamed, existing);
-        }
-    }
-
-    // Apply persistent overrides from state.itemsMeta (if user toggled type/availability)
-    for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
-        const existing = itemsMap.get(name);
-        if (existing) {
-            if (typeof meta.available === 'boolean') existing.available = meta.available;
-            if (meta.type) existing.type = meta.type;
-            if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
-            itemsMap.set(name, existing);
-        }
-    }
-
-    // If no items derived from orders, fallback to listing unique product names from orders in simple list
-    if (itemsMap.size === 0) {
-        // show orders list as before
-        if (state.orders.length) {
-            for (const o of state.orders) {
-                const div = document.createElement('div');
-                div.className = 'card mb-2';
-                div.innerHTML = `
-        <div class="card-body">
-          <h5>${escapeHtml(o.customerName || '(no name)')}</h5>
-          <p><strong>Phone:</strong> ${escapeHtml(o.rawPhone || '')} <small class="text-muted">(masked: ${o.phoneMasked})</small></p>
-          <ul class="list-group list-group-flush mb-2">
-            ${o.items.map(it => `<li class="list-group-item">${escapeHtml(it.name)} &times; ${escapeHtml(it.qty)} (${escapeHtml(it.price)})</li>`).join('')}
-          </ul>
-        </div>
-      `;
-                container.appendChild(div);
-            }
-        }
-    } else {
-        // Render grid of large names with toggles (Ariel style)
-        const table = document.createElement('table');
-        table.className = 'table';
-        const tbody = document.createElement('tbody');
-        const sortedItems = Array.from(itemsMap.entries()).sort((a, b) => a[0].localeCompare(b[0], 'he'));
-        for (const [renamed, info] of sortedItems) {
-            const tr = document.createElement('tr');
-            const nameTd = document.createElement('td');
-            // show parsed qty/amount and computed unit price (if available) under the large name for debugging
-            const sampleQty = info.sampleQtyText ? escapeHtml(info.sampleQtyText) : '';
-            const sampleAmt = (typeof info.sampleAmount === 'number' && info.sampleAmount != null) ? info.sampleAmount : null;
-            const sampleUnit = (typeof info.sampleUnitPrice === 'number' && info.sampleUnitPrice != null) ? info.sampleUnitPrice : null;
-            const details = [];
-            if (sampleQty) details.push(sampleQty);
-            if (sampleAmt !== null) details.push('amt:' + sampleAmt);
-            if (sampleUnit !== null) details.push('u:' + sampleUnit.toFixed(2));
-            const detailsHtml = details.length ? `<div class="small text-muted" style="direction:rtl;text-align:right">${escapeHtml(details.join(' • '))}</div>` : '';
-            nameTd.innerHTML = `<div dir="rtl" class="ariel-name text-end">${escapeHtml(renamed)}</div>${detailsHtml}`;
-            const availTd = document.createElement('td');
-            availTd.style = 'width:150px;';
-            const checked = info.available ? 'checked' : '';
-            const id = 'avail_' + encodeURIComponent(renamed);
-            const typeLabel = (info.type || 'unit');
-            availTd.innerHTML = `<div style="display:flex;justify-content:flex-end;align-items:center;gap:0.5rem;">
-                    <div class="form-check form-switch"><input class="form-check-input avail-toggle" type="checkbox" role="switch" id="${id}" data-name="${encodeURIComponent(renamed)}" ${checked}></div>
-                    <span class="badge bg-secondary type-badge" data-name="${encodeURIComponent(renamed)}" data-type="${typeLabel}">${typeLabel.toUpperCase()}</span>
-                </div>`;
-            tr.appendChild(nameTd);
-            tr.appendChild(availTd);
-            tbody.appendChild(tr);
-        }
-        table.appendChild(tbody);
-        container.appendChild(table);
-
-        // attach toggle handlers to update itemsMeta availability
-        Array.from(container.getElementsByClassName('avail-toggle')).forEach(checkbox => {
-            checkbox.addEventListener('change', (e) => {
-                const nm = decodeURIComponent(checkbox.getAttribute('data-name'));
-                const checked = checkbox.checked;
-                state.itemsMeta[nm] = state.itemsMeta[nm] || {};
-                state.itemsMeta[nm].available = checked;
-                saveItemsMeta();
-            });
-        });
-
-        // attach type-badge handlers to toggle kg/unit and persist in itemsMeta
-        Array.from(container.getElementsByClassName('type-badge')).forEach(b => {
-            b.addEventListener('click', (e) => {
-                const nm = decodeURIComponent(b.getAttribute('data-name'));
-                const curr = b.getAttribute('data-type');
-                const next = curr === 'kg' ? 'unit' : 'kg';
-                b.setAttribute('data-type', next);
-                b.innerText = next.toUpperCase();
-                // update meta
-                state.itemsMeta[nm] = state.itemsMeta[nm] || {};
-                state.itemsMeta[nm].type = next;
-                saveItemsMeta();
-            });
-        });
-
-        // Wire action buttons
-        document.getElementById('setAllAvailable').addEventListener('click', () => {
-            for (const [name] of Object.entries(state.itemsMeta)) {
-                state.itemsMeta[name] = state.itemsMeta[name] || {};
-                state.itemsMeta[name].available = true;
-            }
-            saveItemsMeta();
-            renderLeftovers();
-        });
-        document.getElementById('setAllUnavailable').addEventListener('click', () => {
-            for (const [name] of Object.entries(state.itemsMeta)) {
-                state.itemsMeta[name] = state.itemsMeta[name] || {};
-                state.itemsMeta[name].available = false;
-            }
-            saveItemsMeta();
-            renderLeftovers();
-        });
-        document.getElementById('setAllKgAvailable').addEventListener('click', () => {
-            for (const [name, meta] of Object.entries(state.itemsMeta)) {
-                const type = meta.type;
-                if (type === 'kg') {
-                    state.itemsMeta[name] = state.itemsMeta[name] || {};
-                    state.itemsMeta[name].available = true;
+        for (const o of state.orders) {
+            for (const it of o.items) {
+                const original = it.name || '';
+                const renamed = renameItemJS(original);
+                if (!renamed) continue;
+                const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
+                if (price === 0) continue;
+                const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
+                existing.originals.add(original);
+                if (!isNaN(price)) {
+                    if (price < existing.priceMin) existing.priceMin = price;
                 }
-            }
-            saveItemsMeta();
-            renderLeftovers();
-        });
-
-        document.getElementById('submitLeftovers').addEventListener('click', () => {
-            // Build priceList from available items using logic ported from ItemService.buildPriceList
-            // Rebuild itemsMap from state.orders (same as in renderLeftovers)
-            const itemsMap = new Map();
-            function renameItemJS(itemName) {
-                if (!itemName) return null;
-                const trimmed = itemName.trim();
-                if (trimmed.startsWith('תוספות')) return null;
-                if (trimmed.startsWith('סך')) return null;
-                const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
-                const split = n.trim().split(/\s+/);
-                const firstWord = split.length > 0 ? split[0] : '';
-                if (itemName.includes('תפוח')) return 'תפוח-עץ';
-                if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
-                if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
-                if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
-                if (itemName.includes("צ'ילי")) return "צ'ילי";
-                if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-                if (itemName.includes(' adulte')) return ' adulte';
-                if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
-                if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
-                if (itemName.includes('לאליק')) return 'חסה-לאליק';
-                if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
-                if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
-                if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
-                if (itemName.includes('שום טרי')) return 'שום-ישראלי';
-                if (itemName.includes('שום קלוף')) return null;
-                if (itemName.includes('שום יבש')) return 'שום-רביעייה';
-                if (itemName.includes('שרי')) return 'עגבנית-שרי';
-                if (itemName.includes('ענב לבן')) return 'ענבים';
-                if (itemName.includes('קלחי')) return 'תירס';
-                return firstWord;
-            }
-            function parseFloatSafe(s) {
-                if (!s) return NaN;
-                const cleaned = String(s).replace(/[,₪]/g, '').replace(/[^0-9.\-]/g, '');
-                const v = parseFloat(cleaned);
-                return isNaN(v) ? NaN : v;
-            }
-            for (const o of state.orders) {
-                for (const it of o.items) {
-                    const original = it.name || '';
-                    const renamed = renameItemJS(original);
-                    if (!renamed) continue;
-                    const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
-                    if (price === 0) continue;
-                    const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
-                    existing.originals.add(original);
-                    if (!isNaN(price)) {
-                        if (price < existing.priceMin) existing.priceMin = price;
-                    }
-                    if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
-                        existing.sampleUnitPrice = it.unitPrice;
-                    }
-                    if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
-                        existing.sampleAmount = it.amountNum;
-                    }
-                    if (!existing.sampleQtyText && it.qty) {
-                        existing.sampleQtyText = it.qty;
-                    }
-                    if (it.type) {
-                        existing.type = it.type;
-                    }
-                    const lower = renamed.toLowerCase();
-                    if (lower.includes('בננה') || lower.includes(' adulte') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
-                        existing.type = 'kg';
-                    }
-                    itemsMap.set(renamed, existing);
+                if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
+                    existing.sampleUnitPrice = it.unitPrice;
                 }
-            }
-            for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
-                const existing = itemsMap.get(name);
-                if (existing) {
-                    if (typeof meta.available === 'boolean') existing.available = meta.available;
-                    if (meta.type) existing.type = meta.type;
-                    if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
-                    itemsMap.set(name, existing);
+                if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
+                    existing.sampleAmount = it.amountNum;
                 }
+                if (!existing.sampleQtyText && it.qty) {
+                    existing.sampleQtyText = it.qty;
+                }
+                if (it.type) {
+                    existing.type = it.type;
+                }
+                const lower = renamed.toLowerCase();
+                if (lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+                    existing.type = 'kg';
+                }
+                itemsMap.set(renamed, existing);
             }
-            const lowestPriceMap = new Map();
-            const itemTypeMap = new Map();
-            for (const [renamed, info] of itemsMap.entries()) {
-                if (!info.available) continue;
-                const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
-                if (isNaN(price) || price === 0) continue;
-                if (lowestPriceMap.has(renamed)) {
-                    if (price < lowestPriceMap.get(renamed)) {
-                        lowestPriceMap.set(renamed, price);
-                        itemTypeMap.set(renamed, info.type);
-                    }
-                } else {
+        }
+        for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
+            const existing = itemsMap.get(name);
+            if (existing) {
+                if (typeof meta.available === 'boolean') existing.available = meta.available;
+                if (meta.type) existing.type = meta.type;
+                if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
+                itemsMap.set(name, existing);
+            }
+        }
+        const lowestPriceMap = new Map();
+        const itemTypeMap = new Map();
+        for (const [renamed, info] of itemsMap.entries()) {
+            if (!info.available) continue;
+            const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
+            if (isNaN(price) || price === 0) continue;
+            if (lowestPriceMap.has(renamed)) {
+                if (price < lowestPriceMap.get(renamed)) {
                     lowestPriceMap.set(renamed, price);
                     itemTypeMap.set(renamed, info.type);
                 }
+            } else {
+                lowestPriceMap.set(renamed, price);
+                itemTypeMap.set(renamed, info.type);
             }
-            const kgItems = new Map();
-            const unitItems = new Map();
-            function addToGroup(map, key, name) {
-                if (!map.has(key)) map.set(key, []);
-                map.get(key).push(name);
-            }
-            for (const [renamed, price] of lowestPriceMap.entries()) {
-                let type = itemTypeMap.get(renamed) || 'unit';
+        }
+        const kgItems = new Map();
+        const unitItems = new Map();
+        function addToGroup(map, key, name) {
+            if (!map.has(key)) map.set(key, []);
+            map.get(key).push(name);
+        }
+        for (const [renamed, price] of lowestPriceMap.entries()) {
+            let type = itemTypeMap.get(renamed) || 'unit';
+            if (type === 'kg') {
+                let rounded = Math.floor(price);
+                if (rounded < 3) rounded = 3;
+                if (renamed.includes('לימון') || renamed.includes('קולורבי')) {
+                    rounded = Math.max(3, rounded - 1);
+                }
+                if (renamed.includes('בננה') || renamed.includes(' adulte') || renamed.includes('תפוא')) {
+                    rounded = rounded + 1;
+                }
+                addToGroup(kgItems, rounded, renamed);
+            } else {
+                let rounded = Math.ceil(price);
+                if (renamed.includes('אגס')) {
+                    rounded = Math.floor(price / 1.5);
+                    type = 'kg';
+                } else if (renamed.includes('עגבנית-שרי') || renamed === 'גזר') {
+                    rounded = Math.floor(price / 1.1);
+                    type = 'kg';
+                }
                 if (type === 'kg') {
-                    let rounded = Math.floor(price);
-                    if (rounded < 3) rounded = 3;
-                    if (renamed.includes('לימון') || renamed.includes('קולורבי')) {
-                        rounded = Math.max(3, rounded - 1);
-                    }
-                    if (renamed.includes('בננה') || renamed.includes(' adulte') || renamed.includes('תפוא')) {
-                        rounded = rounded + 1;
-                    }
                     addToGroup(kgItems, rounded, renamed);
                 } else {
-                    let rounded = Math.ceil(price);
-                    if (renamed.includes('אגס')) {
-                        rounded = Math.floor(price / 1.5);
-                        type = 'kg';
-                    } else if (renamed.includes('עגבנית-שרי') || renamed === 'גזר') {
-                        rounded = Math.floor(price / 1.1);
-                        type = 'kg';
-                    }
-                    if (type === 'kg') {
-                        addToGroup(kgItems, rounded, renamed);
-                    } else {
-                        addToGroup(unitItems, rounded, renamed);
-                    }
+                    addToGroup(unitItems, rounded, renamed);
                 }
             }
-            let sb = '';
-            sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
-            sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
-            sb += "המחירים לק\"ג:\n";
-            const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
-            for (const k of sortedKgKeys) {
-                sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
-            }
-            sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
-            sb += '\n' + "המחירים ליחידה:\n";
-            const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
-            for (const k of sortedUnitKeys) {
-                sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
-            }
-            document.getElementById('leftoversTextarea').value = sb;
-            selectTab('leftoversTextTabPane');
-            document.getElementById('leftoversResultPane').classList.remove('d-none');
-            // Telegram send disabled
-            // if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
-            //     sendTelegramMessage(sb);
-            // }
-        });
-        document.getElementById('backToAriel').addEventListener('click', () => {
-            selectTab('toggleTabPane');
-        });
-        document.getElementById('copyLeftoversBtn').addEventListener('click', async () => {
-            const ta = document.getElementById('leftoversTextarea');
-            try {
-                await navigator.clipboard.writeText(ta.value);
-                const orig = document.getElementById('copyLeftoversBtn').innerText;
-                document.getElementById('copyLeftoversBtn').innerText = 'Copied!';
-                setTimeout(() => document.getElementById('copyLeftoversBtn').innerText = orig, 1400);
-                window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
-            } catch (e) { alert('Copy failed: ' + e); }
-        });
-    }
+        }
+        let sb = '';
+        sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
+        sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
+        sb += "המחירים לק\"ג:\n";
+        const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
+        for (const k of sortedKgKeys) {
+            sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
+        }
+        sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
+        sb += '\n' + "המחירים ליחידה:\n";
+        const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
+        for (const k of sortedUnitKeys) {
+            sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
+        }
+        document.getElementById('leftoversTextarea').value = sb;
+        selectTab('leftoversTextTabPane');
+        document.getElementById('leftoversResultPane').classList.remove('d-none');
+        // Telegram send disabled
+        // if (TELEGRAM_TOKEN && TELEGRAM_CHAT_ID && TELEGRAM_TOKEN !== 'YOUR_TELEGRAM_TOKEN_HERE') {
+        //     sendTelegramMessage(sb);
+        // }
+    });
+
+}
 }
 
 function sendTelegramMessage(message) {
@@ -758,6 +512,257 @@ function sendTelegramMessage(message) {
         .catch(error => {
             console.warn('Error sending Telegram message:', error);
         });
+}
+
+// Append action log messages to textarea
+function appendActionLog(msg) {
+    const ta = document.getElementById('actionsLog');
+    if (!ta) return;
+    const ts = new Date().toLocaleTimeString();
+    ta.value = `${ts} ${msg}\n` + ta.value;
+}
+
+// Apply current DOM toggles/type badges into state.itemsMeta (persist in-memory)
+function applyToggleStates() {
+    const container = document.getElementById('leftoversList');
+    if (!container) return;
+    const checkboxes = container.querySelectorAll('.avail-toggle');
+    checkboxes.forEach(cb => {
+        const nm = decodeURIComponent(cb.getAttribute('data-name'));
+        const checked = !!cb.checked;
+        state.itemsMeta[nm] = state.itemsMeta[nm] || {};
+        state.itemsMeta[nm].available = checked;
+        appendActionLog(`Toggle: ${nm} available=${checked}`);
+    });
+    const badges = container.querySelectorAll('.type-badge');
+    badges.forEach(b => {
+        const nm = decodeURIComponent(b.getAttribute('data-name'));
+        const type = b.getAttribute('data-type');
+        state.itemsMeta[nm] = state.itemsMeta[nm] || {};
+        state.itemsMeta[nm].type = type;
+        appendActionLog(`Type: ${nm} -> ${type}`);
+    });
+    saveItemsMeta();
+}
+
+// Build leftovers text from state.orders and state.itemsMeta
+function buildLeftoversText() {
+    // Build itemsMap similar to renderLeftovers
+    const itemsMap = new Map();
+    function renameItemJS(itemName) {
+        if (!itemName) return null;
+        const trimmed = itemName.trim();
+        if (trimmed.startsWith('תוספות')) return null;
+        if (trimmed.startsWith('סך')) return null;
+        const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
+        const split = n.trim().split(/\s+/);
+        const firstWord = split.length > 0 ? split[0] : '';
+        if (itemName.includes('תפוח') && !itemName.includes("תפו'א")) return 'תפוח-עץ';
+        if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
+        if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
+        if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
+        if (itemName.includes("צ'ילי")) return "צ'ילי";
+        if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
+        if (itemName.includes('תפו"א למיקרו')) return 'תפו"א-למיקרו';
+        if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
+        if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
+        if (itemName.includes('לאליק')) return 'חסה-לאליק';
+        if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
+        if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
+        if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
+        if (itemName.includes('שום טרי')) return 'שום-ישראלי';
+        if (itemName.includes('שום קלוף')) return null;
+        if (itemName.includes('שום יבש')) return 'שום-רביעייה';
+        if (itemName.includes('שרי')) return 'עגבנית-שרי';
+        if (itemName.includes('ענב לבן')) return 'ענבים';
+        if (itemName.includes('קלחי')) return 'תירס';
+        return firstWord;
+    }
+    function parseFloatSafe(s) {
+        if (!s) return NaN;
+        const cleaned = String(s).replace(/[,\s₪]/g, '').replace(/[^0-9.\-]/g, '');
+        const v = parseFloat(cleaned);
+        return isNaN(v) ? NaN : v;
+    }
+    for (const o of state.orders) {
+        for (const it of o.items) {
+            const original = it.name || '';
+            const renamed = renameItemJS(original);
+            if (!renamed) continue;
+            const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
+            if (price === 0) continue;
+            const existing = itemsMap.get(renamed) || { originals: new Set(), priceMin: Number.POSITIVE_INFINITY, type: 'unit', available: true };
+            existing.originals.add(original);
+            if (!isNaN(price)) {
+                if (price < existing.priceMin) existing.priceMin = price;
+            }
+            if (existing.sampleUnitPrice == null && typeof it.unitPrice === 'number' && it.unitPrice !== null) {
+                existing.sampleUnitPrice = it.unitPrice;
+            }
+            if (existing.sampleAmount == null && typeof it.amountNum === 'number' && it.amountNum !== null) {
+                existing.sampleAmount = it.amountNum;
+            }
+            if (!existing.sampleQtyText && it.qty) {
+                existing.sampleQtyText = it.qty;
+            }
+            if (it.type) existing.type = it.type;
+            const lower = renamed.toLowerCase();
+            if (lower.includes('בננה') || lower.includes('תפו"א') || lower.includes('תפוא') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || lower.includes('גזר') || lower.includes('תפוח')) {
+                existing.type = 'kg';
+            }
+            itemsMap.set(renamed, existing);
+        }
+    }
+    // Apply saved meta (if any)
+    for (const [name, meta] of Object.entries(state.itemsMeta || {})) {
+        const existing = itemsMap.get(name);
+        if (existing) {
+            if (typeof meta.available === 'boolean') existing.available = meta.available;
+            if (meta.type) existing.type = meta.type;
+            if (typeof meta.priceMin === 'number') existing.priceMin = meta.priceMin;
+            itemsMap.set(name, existing);
+        }
+    }
+    // Now build grouped text
+    const lowestPriceMap = new Map();
+    const itemTypeMap = new Map();
+    for (const [renamed, info] of itemsMap.entries()) {
+        if (!info.available) continue;
+        const price = info.priceMin === Number.POSITIVE_INFINITY ? NaN : info.priceMin;
+        if (isNaN(price) || price === 0) continue;
+        if (lowestPriceMap.has(renamed)) {
+            if (price < lowestPriceMap.get(renamed)) {
+                lowestPriceMap.set(renamed, price);
+                itemTypeMap.set(renamed, info.type);
+            }
+        } else {
+            lowestPriceMap.set(renamed, price);
+            itemTypeMap.set(renamed, info.type);
+        }
+    }
+    const kgItems = new Map();
+    const unitItems = new Map();
+    function addToGroup(map, key, name) { if (!map.has(key)) map.set(key, []); map.get(key).push(name); }
+    for (const [renamed, price] of lowestPriceMap.entries()) {
+        let type = itemTypeMap.get(renamed) || 'unit';
+        if (type === 'kg') {
+            let rounded = Math.floor(price);
+            if (rounded < 3) rounded = 3;
+            if (renamed.includes('לימון') || renamed.includes('קולורבי')) rounded = Math.max(3, rounded - 1);
+            if (renamed.includes('בננה') || renamed.includes('תפו"א') || renamed.includes('תפוא')) rounded = rounded + 1;
+            addToGroup(kgItems, rounded, renamed);
+        } else {
+            let rounded = Math.ceil(price);
+            if (renamed.includes('אגס')) { rounded = Math.floor(price / 1.5); type = 'kg'; }
+            else if (renamed.includes('עגבנית-שרי') || renamed === 'גזר') { rounded = Math.floor(price / 1.1); type = 'kg'; }
+            if (type === 'kg') addToGroup(kgItems, rounded, renamed); else addToGroup(unitItems, rounded, renamed);
+        }
+    }
+    let sb = '';
+    sb += "יש סחורה איכותית במועדון שלב ד', רק מה שעל השולחן הזה, פשוט לשקול ולהעביר לפייבוקס\n";
+    sb += "https://links.payboxapp.com/qzbne3WZLUb\n\n";
+    sb += "המחירים לק\"ג:\n";
+    const sortedKgKeys = Array.from(kgItems.keys()).sort((a, b) => a - b);
+    for (const k of sortedKgKeys) sb += kgItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
+    sb += '\n' + "טיפ: ניתן ללחוץ על המספר במשקל ויחושב המחיר. \nכפתור הפעלה נמצא בצד ימין למטה.\n";
+    sb += '\n' + "המחירים ליחידה:\n";
+    const sortedUnitKeys = Array.from(unitItems.keys()).sort((a, b) => a - b);
+    for (const k of sortedUnitKeys) sb += unitItems.get(k).sort((a, b) => a.localeCompare(b, 'he')).join(' / ') + ' ' + k + '\n';
+    return sb;
+}
+
+// Initialize centralized leftover UI actions (attach once)
+function initLeftoversActions() {
+    const container = document.getElementById('leftoversList');
+    const tabLeftovers = document.getElementById('tab-leftovers');
+    const setAllAvailableBtn = document.getElementById('setAllAvailable');
+    const setAllUnavailableBtn = document.getElementById('setAllUnavailable');
+    const setAllKgAvailableBtn = document.getElementById('setAllKgAvailable');
+    const submitBtn = document.getElementById('submitLeftovers');
+    const backBtn = document.getElementById('backToAriel');
+    const copyBtn = document.getElementById('copyLeftoversBtn');
+
+    // Delegate type-badge clicks to just toggle UI (no state change yet)
+    if (container) {
+        container.addEventListener('click', (e) => {
+            const b = e.target.closest('.type-badge');
+            if (!b) return;
+            const curr = b.getAttribute('data-type');
+            const next = curr === 'kg' ? 'unit' : 'kg';
+            b.setAttribute('data-type', next);
+            b.innerText = next.toUpperCase();
+            appendActionLog(`UI Type toggled: ${decodeURIComponent(b.getAttribute('data-name'))} -> ${next}`);
+        });
+    }
+
+    if (setAllAvailableBtn) {
+        setAllAvailableBtn.addEventListener('click', () => {
+            const checks = document.querySelectorAll('#leftoversList .avail-toggle');
+            checks.forEach(cb => cb.checked = true);
+            appendActionLog('Set all UI toggles to available');
+        });
+    }
+    if (setAllUnavailableBtn) {
+        setAllUnavailableBtn.addEventListener('click', () => {
+            const checks = document.querySelectorAll('#leftoversList .avail-toggle');
+            checks.forEach(cb => cb.checked = false);
+            appendActionLog('Set all UI toggles to unavailable');
+        });
+    }
+    if (setAllKgAvailableBtn) {
+        setAllKgAvailableBtn.addEventListener('click', () => {
+            const badges = document.querySelectorAll('#leftoversList .type-badge');
+            badges.forEach(b => {
+                const nm = b.getAttribute('data-name');
+                if (b.getAttribute('data-type') === 'kg') {
+                    const cb = document.querySelector(`#leftoversList .avail-toggle[data-name="${nm}"]`);
+                    if (cb) cb.checked = true;
+                }
+            });
+            appendActionLog('Set KG items UI toggles to available');
+        });
+    }
+
+    // Submit: apply UI toggles to state, build text, show it
+    if (submitBtn) {
+        submitBtn.addEventListener('click', () => {
+            applyToggleStates();
+            const sb = buildLeftoversText();
+            document.getElementById('leftoversTextarea').value = sb;
+            selectTab('leftoversTextTabPane');
+            document.getElementById('leftoversResultPane').classList.remove('d-none');
+            appendActionLog('Submit clicked - generated leftovers text');
+        });
+    }
+
+    // When clicking the tab for leftovers text, apply toggles and generate text as well
+    if (tabLeftovers) {
+        tabLeftovers.addEventListener('click', () => {
+            applyToggleStates();
+            const sb = buildLeftoversText();
+            document.getElementById('leftoversTextarea').value = sb;
+            appendActionLog('Tab Leftovers clicked - applied UI toggles and generated text');
+        });
+    }
+
+    if (backBtn) {
+        backBtn.addEventListener('click', () => {
+            selectTab('toggleTabPane');
+        });
+    }
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            const ta = document.getElementById('leftoversTextarea');
+            try {
+                await navigator.clipboard.writeText(ta.value);
+                const orig = copyBtn.innerText;
+                copyBtn.innerText = 'Copied!';
+                setTimeout(() => copyBtn.innerText = orig, 1400);
+                window.open('https://chat.whatsapp.com/EmCeWfnYpSP5LFAMv7kfqJ', '_blank', 'noopener');
+                appendActionLog('Copied leftovers text and opened WhatsApp');
+            } catch (e) { alert('Copy failed: ' + e); }
+        });
+    }
 }
 
 function gotoTextPage(selected = null) {
@@ -877,6 +882,8 @@ function initializeApp() {
     attachTabHandlers();
     attachFileHandlers();
     renderLeftovers();
+    // initialize leftover UI actions (attach centralized handlers)
+    initLeftoversActions();
 }
 
 if (document.readyState === 'loading') {
