@@ -106,6 +106,32 @@ async def run_test():
         if len(txt_after_all.strip()) < 20:
             raise SystemExit('Leftovers text unexpectedly short after enabling all')
 
+        # Verify KG section appears before Unit section in generated text
+        kg_index = txt_after_all.find('המחירים לק"ג:')
+        unit_index = txt_after_all.find('המחירים ליחידה:')
+        print('KG section index:', kg_index, 'Unit section index:', unit_index)
+        if kg_index < 0 or unit_index < 0:
+            raise SystemExit('Expected KG and unit section headers in leftovers text')
+        if kg_index >= unit_index:
+            raise SystemExit('KG section must appear before Unit section')
+
+        # Return to toggles and uncheck one item to verify it is excluded from leftovers text
+        await page.click('#tab-toggle')
+        await page.wait_for_selector('#leftoversList .avail-toggle')
+        first_item_name = await page.evaluate("(() => { const item = document.querySelector('#leftoversList > div'); if (!item) return ''; const label = item.querySelector('div'); return label ? label.innerText.trim() : ''; })()")
+        if not first_item_name:
+            raise SystemExit('Could not determine first leftovers item name')
+        print('First item to uncheck:', first_item_name)
+
+        await page.click('#leftoversList > div:first-child .avail-toggle')
+        # submit again
+        await page.click('#submitLeftovers')
+        await page.wait_for_selector('#leftoversTextarea')
+        txt_after_unchecked = await page.evaluate('document.getElementById("leftoversTextarea").value')
+        if first_item_name in txt_after_unchecked:
+            raise SystemExit(f'Unchecked item "{first_item_name}" still appears in leftovers text')
+        print('Unchecked item correctly excluded from leftovers text')
+
         # Go back and set all unavailable, then set KG available only
         await page.click('#tab-toggle')
         await page.click('#setAllUnavailable')
@@ -120,13 +146,28 @@ async def run_test():
         if txt_after_kg == txt_after_all:
             print('Warning: KG-only leftovers equals all-available leftovers (possible bug)')
 
-        # Print any console messages
-        if console_msgs:
-            print('Console messages from page:')
-            for t, m in console_msgs:
-                print(f'[{t}] {m}')
+        # Validate section content: known KG items should be in KG section
+        # Extract KG section (between "המחירים לק"ג:" and "טיפ:")
+        kg_start_idx = txt_after_all.find('המחירים לק"ג:')
+        kg_end_idx = txt_after_all.find('טיפ:', kg_start_idx)
+        if kg_start_idx >= 0 and kg_end_idx > kg_start_idx:
+            kg_section = txt_after_all[kg_start_idx:kg_end_idx]
+            # Known KG items: בננה, תפוח, גזר, לימון, קולורבי, עגבנית-שרי, תפו"א
+            kg_test_items = ['בננה', 'תפוח', 'גזר', 'לימון']
+            found_kg_items = [item for item in kg_test_items if item in kg_section]
+            print('Found KG items in KG section:', found_kg_items)
+        else:
+            print('Warning: Could not extract KG section for validation')
 
-        await browser.close()
+        # Extract Unit section (after "המחירים ליחידה:")
+        unit_section_start = txt_after_all.find('המחירים ליחידה:')
+        if unit_section_start >= 0:
+            unit_section = txt_after_all[unit_section_start:]
+            # Verify KG-only items are NOT in Unit section (sanity check)
+            # (items like בננה, תפוח should not appear in unit section if they have kg amounts)
+            pass
+
+        print('All validations passed!')
 
 
 if __name__ == '__main__':

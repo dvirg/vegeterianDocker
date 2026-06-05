@@ -225,6 +225,10 @@ function renderLeftovers() {
         // float the checkbox to the right edge so it's always on the right
         cb.style.cssFloat = 'right';
         cb.style.marginLeft = '8px';
+        cb.addEventListener('change', () => {
+            state.itemsMeta[k] = state.itemsMeta[k] || {};
+            state.itemsMeta[k].available = cb.checked;
+        });
 
         const label = document.createElement('div');
         label.innerText = k;
