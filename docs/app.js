@@ -70,14 +70,21 @@ function performSearch() {
         if (!o.customerName) continue;
         const nameLower = o.customerName.toLowerCase();
         if (fragments.length === 0 || fragments.some(f => nameLower.includes(f))) {
-            let total = 0;
-            if (o.items && Array.isArray(o.items)) {
-                for (const it of o.items) {
-                    const t = parseFloat(String(it.price || '').replace(/[^0-9.,\-]/g, '').replace(',', '.')) || 0;
-                    total += t;
+            // Prefer explicit 'סך הכל' captured during parsing; fall back to summing item prices
+            let totalVal = null;
+            if (o.total !== undefined && o.total !== null && !isNaN(Number(o.total))) {
+                totalVal = Number(o.total);
+            } else {
+                let total = 0;
+                if (o.items && Array.isArray(o.items)) {
+                    for (const it of o.items) {
+                        const t = parseFloat(String(it.price || '').replace(/[^0-9.,\-]/g, '').replace(',', '.')) || 0;
+                        total += t;
+                    }
                 }
+                totalVal = total;
             }
-            results.push({ name: o.customerName, phone: o.rawPhone || '', total: total.toFixed(2) });
+            results.push({ name: o.customerName, phone: o.rawPhone || '', total: (isNaN(totalVal) ? '' : totalVal.toFixed(2)) });
         }
     }
     if (results.length === 0) {
@@ -86,7 +93,7 @@ function performSearch() {
     }
     const table = document.createElement('table');
     table.className = 'table table-striped table-lg';
-    table.innerHTML = '<thead><tr><th class="h5">Name</th><th class="h5">Phones</th><th class="h5">סהכ</th></tr></thead>';
+    table.innerHTML = '<thead><tr><th class="h5">שם</th><th class="h5">טלפון</th><th class="h5">סהכ</th></tr></thead>';
     const tbody = document.createElement('tbody');
     for (const r of results) {
         const tr = document.createElement('tr');
@@ -95,7 +102,11 @@ function performSearch() {
     }
     table.appendChild(tbody);
     container.appendChild(table);
-    showSearchTextPage(results.map(r => ({ name: r.name, phone: r.phone })));
+    // Ensure the search results pane is visible and the text pane is hidden
+    const searchPane = document.getElementById('searchResultsPane');
+    const textPane = document.getElementById('textPane');
+    if (searchPane) searchPane.classList.remove('d-none');
+    if (textPane) textPane.classList.add('d-none');
 }
 
 function attachTabHandlers() {
@@ -169,7 +180,12 @@ async function processUploadedFile(f) {
                     const quantity = sanitizeCellRaw(row[colSet[1]] || '');
                     const price = sanitizeCellRaw(row[colSet[2]] || '');
                     if (!product || product === 'מוצר') continue;
-                    if (product.startsWith('סך')) continue;
+                    // if this row is the 'סך הכל' total row, capture the total for the order
+                    if (product.includes('סך')) {
+                        const totalNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
+                        if (!isNaN(totalNum)) current.total = totalNum;
+                        continue;
+                    }
                     const amountNum = parseFloat(String(quantity).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                     const priceNum = parseFloat(String(price).replace(/[^0-9.,\-]/g, '').replace(',', '.'));
                     if (isNaN(priceNum)) continue;
@@ -186,6 +202,12 @@ async function processUploadedFile(f) {
         state.orders = orders;
         addLog(`Loaded ${orders.length} orders`);
         renderLeftovers();
+        // After successful upload, switch to Search tab and run the search automatically
+        try {
+            performSearch();
+        } catch (e) {
+            console.warn('Auto-search after upload failed', e);
+        }
     } catch (err) {
         addLog('Upload error: ' + err, 'error');
         console.error(err);
@@ -199,7 +221,15 @@ function renderLeftovers() {
     container.style.textAlign = 'right';
     container.innerHTML = '';
     const items = new Map();
-    function renameItem(n) { if (!n) return null; return n; }
+    function renameItem(n) {
+        if (!n) return null;
+        const s = String(n).trim();
+        // normalize common potato spellings to תפו"א
+        if (s.includes('תפו') || s.includes("תפוא") || s.includes("תפו'א") || s.includes('תפו"א')) {
+            return 'תפו"א';
+        }
+        return s;
+    }
     for (const o of state.orders) {
         for (const it of o.items) {
             const name = renameItem(it.name || '');
@@ -283,6 +313,9 @@ function buildLeftoversText() {
         const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
         const split = n.trim().split(/\s+/);
         const firstWord = split.length > 0 ? split[0] : '';
+        const low = n.toLowerCase();
+        // Merge common potato spellings/variants into single canonical name תפו"א
+        if (low.includes('תפוא') || low.includes("תפו'א") || low.includes('תפו"א') || (low.includes('תפו') && firstWord.includes('תפו') && !low.includes('תפוח'))) return 'תפו"א';
         if (itemName.includes('תפוח') && !itemName.includes("תפו'א")) return 'תפוח-עץ';
         if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
         if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
@@ -355,7 +388,15 @@ function buildLeftoversText() {
         if (isNaN(price) || price === 0) continue;
         if (!lowestPriceMap.has(renamed) || price < lowestPriceMap.get(renamed)) {
             lowestPriceMap.set(renamed, price);
-            itemTypeMap.set(renamed, info.type || 'unit');
+            // determine type, but force known potato variants to kg
+            let resolvedType = info.type || 'unit';
+            try {
+                const ln = String(renamed).toLowerCase();
+                if (ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א')) {
+                    resolvedType = 'kg';
+                }
+            } catch (e) { /* ignore */ }
+            itemTypeMap.set(renamed, resolvedType);
         }
     }
 
