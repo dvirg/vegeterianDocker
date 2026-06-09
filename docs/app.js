@@ -202,11 +202,17 @@ async function processUploadedFile(f) {
         state.orders = orders;
         addLog(`Loaded ${orders.length} orders`);
         renderLeftovers();
-        // After successful upload, switch to Search tab and run the search automatically
+        // After successful upload, navigate based on weekday: Wednesday -> Toggle page, otherwise -> Search
         try {
-            performSearch();
+            const today = new Date();
+            // getDay(): 0=Sunday,1=Mon,2=Tue,3=Wed
+            if (today.getDay() === 3) {
+                selectTab('toggleTabPane');
+            } else {
+                performSearch();
+            }
         } catch (e) {
-            console.warn('Auto-search after upload failed', e);
+            console.warn('Auto-navigation after upload failed', e);
         }
     } catch (err) {
         addLog('Upload error: ' + err, 'error');
@@ -469,6 +475,56 @@ function initLeftoversActions() {
         const sb = buildLeftoversText();
         document.getElementById('leftoversTextarea').value = sb;
     });
+    // Back button in leftovers text goes back to the toggle page
+    const backBtn = document.getElementById('backToAriel');
+    if (backBtn) {
+        backBtn.addEventListener('click', () => selectTab('toggleTabPane'));
+    }
+    // Copy & Go: copy leftovers text to clipboard and open WhatsApp with the text
+    const copyBtn = document.getElementById('copyLeftoversBtn');
+    if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+            try {
+                const txt = (document.getElementById('leftoversTextarea') || {}).value || '';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(txt);
+                } else {
+                    // fallback: select and execCommand
+                    const ta = document.getElementById('leftoversTextarea');
+                    if (ta) {
+                        ta.select();
+                        document.execCommand('copy');
+                    }
+                }
+                const wa = 'https://wa.me/?text=' + encodeURIComponent(txt);
+                window.open(wa, '_blank');
+            } catch (e) {
+                console.warn('Copy & Go failed', e);
+            }
+        });
+    }
+    // Copy only button: copy to clipboard but do not open WhatsApp
+    const copyOnlyBtn = document.getElementById('copyOnlyBtn');
+    if (copyOnlyBtn) {
+        copyOnlyBtn.addEventListener('click', async () => {
+            try {
+                const txt = (document.getElementById('leftoversTextarea') || {}).value || '';
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    await navigator.clipboard.writeText(txt);
+                } else {
+                    const ta = document.getElementById('leftoversTextarea');
+                    if (ta) {
+                        ta.select();
+                        document.execCommand('copy');
+                    }
+                }
+                addLog('Leftovers copied to clipboard');
+            } catch (e) {
+                console.warn('Copy failed', e);
+                addLog('Copy failed: ' + e.message, 'error');
+            }
+        });
+    }
 }
 
 function gotoTextPage(selected = null) {
