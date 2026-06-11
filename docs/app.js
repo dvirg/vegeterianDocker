@@ -271,6 +271,15 @@ function renderLeftovers() {
         cb.addEventListener('change', () => {
             state.itemsMeta[k] = state.itemsMeta[k] || {};
             state.itemsMeta[k].available = cb.checked;
+            // Apply toggle state and regenerate leftovers textarea immediately
+            try {
+                applyToggleStates();
+                const sb = buildLeftoversText();
+                const ta = document.getElementById('leftoversTextarea');
+                if (ta) ta.value = sb;
+            } catch (e) {
+                console.warn('Failed to regenerate leftovers on toggle change', e);
+            }
         });
 
         const label = document.createElement('div');
