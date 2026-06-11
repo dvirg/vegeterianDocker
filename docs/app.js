@@ -230,8 +230,11 @@ function renderLeftovers() {
     function renameItem(n) {
         if (!n) return null;
         const s = String(n).trim();
-        // normalize common potato spellings to תפו"א
-        if (s.includes('תפו') || s.includes("תפוא") || s.includes("תפו'א") || s.includes('תפו"א')) {
+        const low = s.toLowerCase();
+        // exclude 'תוספות' rows from toggle list
+        if (low.includes('תוספות')) return null;
+        // normalize potato variants to תפו"א but do NOT match תפוח (apple)
+        if ((s.includes('תפו"א') || s.includes("תפו'א") || low.includes('תפוא') || (low.includes('תפו') && !low.includes('תפוח')))) {
             return 'תפו"א';
         }
         return s;
@@ -245,7 +248,11 @@ function renderLeftovers() {
         }
     }
     // Build DOM list (RTL): show checkbox on the far right
-    for (const [k, v] of items.entries()) {
+    // Sort items by name using Hebrew locale before rendering
+    const sortedEntries = Array.from(items.entries()).sort((a, b) => {
+        try { return a[0].localeCompare(b[0], 'he'); } catch (e) { return a[0] < b[0] ? -1 : 1; }
+    });
+    for (const [k, v] of sortedEntries) {
         const div = document.createElement('div');
         div.className = 'mb-2';
         // ensure RTL and right-aligned text
@@ -484,8 +491,16 @@ function initLeftoversActions() {
     const copyBtn = document.getElementById('copyLeftoversBtn');
     if (copyBtn) {
         copyBtn.addEventListener('click', async () => {
+            // Open a new window synchronously to avoid popup blockers, then navigate it after copying
+            const txt = (document.getElementById('leftoversTextarea') || {}).value || '';
+            const wa = 'https://wa.me/?text=' + encodeURIComponent(txt);
+            let win = null;
             try {
-                const txt = (document.getElementById('leftoversTextarea') || {}).value || '';
+                win = window.open('', '_blank');
+            } catch (e) {
+                console.warn('Failed to open window before copy', e);
+            }
+            try {
                 if (navigator.clipboard && navigator.clipboard.writeText) {
                     await navigator.clipboard.writeText(txt);
                 } else {
@@ -494,12 +509,18 @@ function initLeftoversActions() {
                     if (ta) {
                         ta.select();
                         document.execCommand('copy');
+                        // remove selection
+                        try { window.getSelection().removeAllRanges(); } catch (e) { }
                     }
                 }
-                const wa = 'https://wa.me/?text=' + encodeURIComponent(txt);
-                window.open(wa, '_blank');
+                if (win) {
+                    try { win.location.href = wa; } catch (e) { window.open(wa, '_blank'); }
+                } else {
+                    window.open(wa, '_blank');
+                }
             } catch (e) {
                 console.warn('Copy & Go failed', e);
+                if (win) try { win.close(); } catch (e) { }
             }
         });
     }
