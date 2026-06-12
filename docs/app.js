@@ -7,6 +7,50 @@ const TELEGRAM_CHAT_ID = '';
 
 const state = { orders: [], itemsMeta: {} };
 
+function renameItem(itemName) {
+    if (!itemName) return null;
+    const trimmed = itemName.trim();
+    if (trimmed.startsWith('תוספות') || trimmed.toLowerCase().includes('תוספות')) return null;
+    if (trimmed.startsWith('סך')) return null;
+    const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
+    const split = n.trim().split(/\s+/);
+    const firstWord = split.length > 0 ? split[0] : '';
+    const low = n.toLowerCase();
+    // Merge common potato spellings/variants into single canonical name תפו"א
+    if (low.includes('תפוא') || low.includes("תפו'א") || low.includes('תפו"א') || (low.includes('תפו') && firstWord.includes('תפו') && !low.includes('תפוח'))) return 'תפו"א';
+    if (itemName.includes('תפוח') && !itemName.includes("תפו'א")) return 'תפוח-עץ';
+    if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
+    if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
+    if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
+    if (itemName.includes("צ'ילי")) return "צ'ילי";
+    if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
+    if (itemName.includes('תפו"א') || itemName.includes("תפו'א")) return "תפו" + 'א';
+    if (itemName.includes('תפו') && firstWord.includes('תפו')) return 'תפו"א';
+    if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
+    if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
+    if (itemName.includes('לאליק')) return 'חסה-לאליק';
+    if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
+    if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
+    if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
+    if (itemName.includes('שום טרי')) return 'שום-ישראלי';
+    if (itemName.includes('שום קלוף')) return null;
+    if (itemName.includes('שום יבש')) return 'שום-רביעייה';
+    if (itemName.includes('שרי')) return 'עגבנית-שרי';
+    if (itemName.includes('ענב לבן')) return 'ענבים';
+    if (itemName.includes('קלחי')) return 'תירס';
+    return firstWord || itemName;
+}
+
+function updateLeftoversTextarea() {
+    try {
+        const sb = buildLeftoversText();
+        const ta = document.getElementById('leftoversTextarea');
+        if (ta) ta.value = sb;
+    } catch (e) {
+        console.warn('Live-update leftovers failed', e);
+    }
+}
+
 function addLog(message, type = 'info') {
     const logDiv = document.getElementById('uploadLog');
     if (!logDiv) return;
@@ -200,6 +244,7 @@ async function processUploadedFile(f) {
             }
         }
         state.orders = orders;
+        state.itemsMeta = {};
         addLog(`Loaded ${orders.length} orders`);
         renderLeftovers();
         // After successful upload, navigate based on weekday: Wednesday -> Toggle page, otherwise -> Search
@@ -227,18 +272,6 @@ function renderLeftovers() {
     container.style.textAlign = 'right';
     container.innerHTML = '';
     const items = new Map();
-    function renameItem(n) {
-        if (!n) return null;
-        const s = String(n).trim();
-        const low = s.toLowerCase();
-        // exclude 'תוספות' rows from toggle list
-        if (low.includes('תוספות')) return null;
-        // normalize potato variants to תפו"א but do NOT match תפוח (apple)
-        if ((s.includes('תפו"א') || s.includes("תפו'א") || low.includes('תפוא') || (low.includes('תפו') && !low.includes('תפוח')))) {
-            return 'תפו"א';
-        }
-        return s;
-    }
     for (const o of state.orders) {
         for (const it of o.items) {
             const name = renameItem(it.name || '');
@@ -264,22 +297,22 @@ function renderLeftovers() {
         cb.type = 'checkbox';
         cb.className = 'avail-toggle form-check-input';
         cb.setAttribute('data-name', encodeURIComponent(k));
-        cb.checked = true;
+        
+        // Preserve checked state from itemsMeta if it exists, default to true
+        const isAvailable = (state.itemsMeta[k] && typeof state.itemsMeta[k].available === 'boolean') 
+            ? state.itemsMeta[k].available 
+            : true;
+        cb.checked = isAvailable;
+
         // float the checkbox to the right edge so it's always on the right
         cb.style.cssFloat = 'right';
         cb.style.marginLeft = '8px';
         cb.addEventListener('change', () => {
             state.itemsMeta[k] = state.itemsMeta[k] || {};
             state.itemsMeta[k].available = cb.checked;
-            // Apply toggle state and regenerate leftovers textarea immediately
-            try {
-                applyToggleStates();
-                const sb = buildLeftoversText();
-                const ta = document.getElementById('leftoversTextarea');
-                if (ta) ta.value = sb;
-            } catch (e) {
-                console.warn('Failed to regenerate leftovers on toggle change', e);
-            }
+            // Keep state in sync and re-render leftovers textarea live
+            applyToggleStates();
+            updateLeftoversTextarea();
         });
 
         const label = document.createElement('div');
@@ -303,6 +336,10 @@ function renderLeftovers() {
         div.appendChild(badge);
         container.appendChild(div);
     }
+    
+    // Sync the textarea initially
+    applyToggleStates();
+    updateLeftoversTextarea();
 }
 
 function applyToggleStates() {
@@ -327,40 +364,6 @@ function buildLeftoversText() {
     // Build items map and canonicalize names
     const itemsMap = new Map();
 
-    function renameItemJS(itemName) {
-        if (!itemName) return null;
-        const trimmed = itemName.trim();
-        if (trimmed.startsWith('תוספות')) return null;
-        if (trimmed.startsWith('סך')) return null;
-        const n = itemName.replace(/-/g, ' ').replace(/[()]/g, ' ');
-        const split = n.trim().split(/\s+/);
-        const firstWord = split.length > 0 ? split[0] : '';
-        const low = n.toLowerCase();
-        // Merge common potato spellings/variants into single canonical name תפו"א
-        if (low.includes('תפוא') || low.includes("תפו'א") || low.includes('תפו"א') || (low.includes('תפו') && firstWord.includes('תפו') && !low.includes('תפוח'))) return 'תפו"א';
-        if (itemName.includes('תפוח') && !itemName.includes("תפו'א")) return 'תפוח-עץ';
-        if (itemName.includes('מלפפון בייבי')) return 'מלפפון-בייבי';
-        if (itemName.includes('עלי בייבי')) return 'עלי-בייבי';
-        if (itemName.includes('גזר צבעוני')) return 'גזר-צבעוני';
-        if (itemName.includes("צ'ילי")) return "צ'ילי";
-        if (firstWord.includes('פלפל') && !itemName.includes('פלפלונים')) return 'פלפל / חריף';
-        if (itemName.includes('תפו"א') || itemName.includes("תפו'א")) return "תפו" + 'א';
-        if (itemName.includes('תפו') && firstWord.includes('תפו')) return 'תפו"א';
-        if (itemName.includes('בצל ירוק')) return 'בצל-ירוק';
-        if (itemName.includes('סלק מבושל')) return 'סלק-בוואקום';
-        if (itemName.includes('לאליק')) return 'חסה-לאליק';
-        if (itemName.includes('סלנובה')) return 'חסה-סלנובה';
-        if (itemName.includes('נבט') && split.length > 1) return split[0] + '-' + split[1];
-        if (itemName.includes('סלרי ראש')) return 'סלרי-ראש';
-        if (itemName.includes('שום טרי')) return 'שום-ישראלי';
-        if (itemName.includes('שום קלוף')) return null;
-        if (itemName.includes('שום יבש')) return 'שום-רביעייה';
-        if (itemName.includes('שרי')) return 'עגבנית-שרי';
-        if (itemName.includes('ענב לבן')) return 'ענבים';
-        if (itemName.includes('קלחי')) return 'תירס';
-        return firstWord || itemName;
-    }
-
     function parseFloatSafe(s) {
         if (!s) return NaN;
         const cleaned = String(s).replace(/[,\s₪]/g, '').replace(/[^0-9.\-]/g, '');
@@ -371,7 +374,7 @@ function buildLeftoversText() {
     for (const o of state.orders) {
         for (const it of o.items) {
             const original = it.name || '';
-            const renamed = renameItemJS(original);
+            const renamed = renameItem(original);
             if (!renamed) continue;
             const price = (typeof it.unitPrice === 'number' && it.unitPrice !== null) ? it.unitPrice : parseFloatSafe(it.price);
             if (isNaN(price) || price === 0) continue;
@@ -467,9 +470,13 @@ function initLeftoversActions() {
     const container = document.getElementById('leftoversList');
     document.getElementById('setAllAvailable').addEventListener('click', () => {
         document.querySelectorAll('#leftoversList .avail-toggle').forEach(cb => cb.checked = true);
+        applyToggleStates();
+        updateLeftoversTextarea();
     });
     document.getElementById('setAllUnavailable').addEventListener('click', () => {
         document.querySelectorAll('#leftoversList .avail-toggle').forEach(cb => cb.checked = false);
+        applyToggleStates();
+        updateLeftoversTextarea();
     });
     document.getElementById('setAllKgAvailable').addEventListener('click', () => {
         document.querySelectorAll('#leftoversList .type-badge').forEach(b => {
@@ -479,17 +486,17 @@ function initLeftoversActions() {
                 if (cb) cb.checked = true;
             }
         });
+        applyToggleStates();
+        updateLeftoversTextarea();
     });
     document.getElementById('submitLeftovers').addEventListener('click', () => {
         applyToggleStates();
-        const sb = buildLeftoversText();
-        document.getElementById('leftoversTextarea').value = sb;
+        updateLeftoversTextarea();
         selectTab('leftoversTextTabPane');
     });
     document.getElementById('tab-leftovers').addEventListener('click', () => {
         applyToggleStates();
-        const sb = buildLeftoversText();
-        document.getElementById('leftoversTextarea').value = sb;
+        updateLeftoversTextarea();
     });
     // Back button in leftovers text goes back to the toggle page
     const backBtn = document.getElementById('backToAriel');
