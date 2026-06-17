@@ -276,7 +276,14 @@ function renderLeftovers() {
         for (const it of o.items) {
             const name = renameItem(it.name || '');
             if (!name) continue;
-            if (!items.has(name)) items.set(name, { name, samples: [], type: it.type || 'unit' });
+            if (!items.has(name)) {
+                let defaultType = it.type || 'unit';
+                const ln = name.toLowerCase();
+                if (ln.includes('בננה') || ln.includes('תפו') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || ln.includes('גזר') || ln.includes('תפוח')) {
+                    defaultType = 'kg';
+                }
+                items.set(name, { name, samples: [], type: defaultType });
+            }
             items.get(name).samples.push(it);
         }
     }
@@ -413,11 +420,12 @@ function buildLeftoversText() {
         if (isNaN(price) || price === 0) continue;
         if (!lowestPriceMap.has(renamed) || price < lowestPriceMap.get(renamed)) {
             lowestPriceMap.set(renamed, price);
-            // determine type, but force known potato variants to kg
+            // determine type, but force known kg variants to kg
             let resolvedType = info.type || 'unit';
             try {
                 const ln = String(renamed).toLowerCase();
-                if (ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א')) {
+                if (ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א') ||
+                    ln.includes('בננה') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || ln.includes('גזר') || ln.includes('תפוח')) {
                     resolvedType = 'kg';
                 }
             } catch (e) { /* ignore */ }
