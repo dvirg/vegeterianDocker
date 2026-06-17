@@ -16,6 +16,7 @@ function renameItem(itemName) {
     const split = n.trim().split(/\s+/);
     const firstWord = split.length > 0 ? split[0] : '';
     const low = n.toLowerCase();
+    if (itemName.includes('תפוז')) return 'תפוז';
     // Merge common potato spellings/variants into single canonical name תפו"א
     if (low.includes('תפוא') || low.includes("תפו'א") || low.includes('תפו"א') || (low.includes('תפו') && firstWord.includes('תפו') && !low.includes('תפוח'))) return 'תפו"א';
     if (itemName.includes('תפוח') && !itemName.includes("תפו'א")) return 'תפוח-עץ';
