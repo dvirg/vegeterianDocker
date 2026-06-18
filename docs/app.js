@@ -441,8 +441,14 @@ function buildLeftoversText() {
     for (const [renamed, price] of lowestPriceMap.entries()) {
         let type = itemTypeMap.get(renamed) || 'unit';
         if (type === 'kg') {
-            // Round down for kg items
-            const rounded = Math.floor(price);
+            // Round down for kg items, except banana (round up) and kohlrabi (round down and decrease by 1)
+            let rounded = Math.floor(price);
+            const lower = renamed.toLowerCase();
+            if (lower.includes('בננה')) {
+                rounded = Math.ceil(price);
+            } else if (lower.includes('קולורבי')) {
+                rounded = Math.floor(price) - 1;
+            }
             addToGroup(kgItems, rounded, renamed);
         } else {
             // Round up for unit items
