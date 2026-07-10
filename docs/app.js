@@ -16,6 +16,7 @@ function renameItem(itemName) {
     const split = n.trim().split(/\s+/);
     const firstWord = split.length > 0 ? split[0] : '';
     const low = n.toLowerCase();
+    if (low.includes('מיקרו') && (low.includes('תפו') || low.includes('תפוא'))) return 'תפו"א-למיקרו';
     if (itemName.includes('תפוז')) return 'תפוז';
     // Merge common potato spellings/variants into single canonical name תפו"א
     if (low.includes('תפוא') || low.includes("תפו'א") || low.includes('תפו"א') || (low.includes('תפו') && firstWord.includes('תפו') && !low.includes('תפוח'))) return 'תפו"א';
@@ -394,7 +395,7 @@ function buildLeftoversText() {
             if (!existing.sampleQtyText && it.qty) existing.sampleQtyText = it.qty;
             if (it.type) existing.type = it.type;
             const lower = renamed.toLowerCase();
-            if (lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || (lower.includes('גזר') && !lower.includes('גזר-צבעוני')) || lower.includes('תפוח')) {
+            if ((lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || (lower.includes('גזר') && !lower.includes('גזר-צבעוני')) || lower.includes('תפוח')) && !lower.includes('מיקרו')) {
                 existing.type = 'kg';
             }
             itemsMap.set(renamed, existing);
@@ -425,8 +426,8 @@ function buildLeftoversText() {
             let resolvedType = info.type || 'unit';
             try {
                 const ln = String(renamed).toLowerCase();
-                if (ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א') ||
-                    ln.includes('בננה') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || ln.includes('תפוח')) {
+                if ((ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א') ||
+                     ln.includes('בננה') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || ln.includes('תפוח')) && !ln.includes('מיקרו')) {
                     resolvedType = 'kg';
                 }
             } catch (e) { /* ignore */ }
