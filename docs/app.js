@@ -441,19 +441,33 @@ function buildLeftoversText() {
 
     for (const [renamed, price] of lowestPriceMap.entries()) {
         let type = itemTypeMap.get(renamed) || 'unit';
+        const lower = renamed.toLowerCase();
+        const isException = lower.includes('בננה') || 
+                            lower.includes('עגבנ') || 
+                            lower.includes('אננס') || 
+                            lower.includes('אוכמניות') || 
+                            lower.includes('תפו"א') || 
+                            lower.includes("תפו'א") || 
+                            lower.includes('תפוא');
+
         if (type === 'kg') {
             // Round down for kg items, except banana (round up) and kohlrabi (round down and decrease by 1)
             let rounded = Math.floor(price);
-            const lower = renamed.toLowerCase();
             if (lower.includes('בננה')) {
                 rounded = Math.ceil(price);
             } else if (lower.includes('קולורבי')) {
                 rounded = Math.floor(price) - 1;
             }
+            if (!isException) {
+                rounded -= 1;
+            }
             addToGroup(kgItems, rounded, renamed);
         } else {
             // Round up for unit items
-            const rounded = Math.ceil(price);
+            let rounded = Math.ceil(price);
+            if (!isException) {
+                rounded -= 1;
+            }
             addToGroup(unitItems, rounded, renamed);
         }
     }
