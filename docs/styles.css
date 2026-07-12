@@ -21,3 +21,73 @@ button:disabled {
     cursor: not-allowed;
     opacity: 0.6;
 }
+
+/* Drop zone hover effect */
+#reportsDropZone.dragover {
+    background-color: #e9ecef !important;
+    border-color: #0a58ca !important;
+}
+
+/* Reports Matrix Grid Sticky Headers */
+#reportsMatrixTable thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: #f1f3f5;
+    color: #212529;
+    font-weight: 600;
+    box-shadow: inset 0 -1px 0 #dee2e6, 0 2px 5px rgba(0,0,0,0.05);
+    border: none;
+    vertical-align: middle;
+    white-space: nowrap;
+    padding: 10px 12px;
+}
+
+/* Sticky first column (Product Name) */
+#reportsMatrixTable td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 8;
+    background-color: #f8f9fa;
+    font-weight: 500;
+    text-align: right;
+    direction: rtl;
+    box-shadow: inset -1px 0 0 #dee2e6, 2px 0 5px rgba(0,0,0,0.05);
+    white-space: nowrap;
+    border-right: 1px solid #dee2e6;
+}
+
+#reportsMatrixTable thead th:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 12;
+    background-color: #e9ecef;
+    box-shadow: inset -1px -1px 0 #dee2e6, 2px 2px 5px rgba(0,0,0,0.05);
+}
+
+/* Cell styles */
+#reportsMatrixTable tbody td {
+    padding: 8px 10px;
+    vertical-align: middle;
+    transition: all 0.15s ease;
+}
+
+/* Grid cell hover effect */
+#reportsMatrixTable tbody td.clickable-cell {
+    cursor: pointer;
+}
+
+#reportsMatrixTable tbody td.clickable-cell:hover {
+    filter: brightness(0.92) contrast(1.1);
+    box-shadow: inset 0 0 0 2px #495057;
+    transform: scale(1.02);
+    z-index: 9;
+}
+
+/* Modal utility rules */
+.modal.fade {
+    transition: opacity 0.15s linear;
+}
+.modal.show {
+    opacity: 1;
+}

@@ -28,6 +28,9 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="tab-leftovers" type="button" role="tab">Leftovers Text</button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="tab-reports" type="button" role="tab">Reports</button>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -124,17 +127,124 @@
                         </div>
                     </div>
 
-                    <div id="leftoversTextTabPane" class="tab-pane fade" role="tabpanel">
-                        <div id="leftoversResultPane" class="pane">
-                            <h3>Items Leftovers Prices</h3>
-                            <div class="mb-3 d-flex">
-                                <button id="backToAriel" class="btn btn-success ms-2">עדכון עודפים</button>
-                                <button id="copyOnlyBtn" class="btn btn-outline-secondary ms-2">Copy</button>
-                                <button id="copyLeftoversBtn" class="btn btn-outline-primary ms-2">Copy & Go</button>
+                    <div id="reportsTabPane" class="tab-pane fade" role="tabpanel">
+                        <!-- Upload Screen -->
+                        <div id="reportsUploadScreen" class="card mb-3">
+                            <div class="card-body">
+                                <h5>Report File Upload (Upload 3 files)</h5>
+                                <p class="text-muted small">Upload all 3 files at once. We will auto-detect which file is which:</p>
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <div class="p-2 border rounded bg-white h-100">
+                                            <strong class="small text-primary">1. Quantities (כמויות)</strong>
+                                            <div class="text-muted" style="font-size:0.8rem">Excel file with multiple sheets (one sheet per location).</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-2 border rounded bg-white h-100">
+                                            <strong class="small text-primary">2. Delivery Notes (תעודות משלוח)</strong>
+                                            <div class="text-muted" style="font-size:0.8rem">Excel file containing a sheet named 'DataSheet' (supplied quantities).</div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="p-2 border rounded bg-white h-100">
+                                            <strong class="small text-primary">3. Credits (זיכויים)</strong>
+                                            <div class="text-muted" style="font-size:0.8rem">CSV file containing refund/credit records.</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="reportsDropZone" class="border border-dashed rounded p-5 text-center mb-3 bg-light" style="cursor: pointer; border-width: 2px !important; border-color: #0d6efd !important; transition: background-color 0.2s;">
+                                    <h4 class="mb-2">Drag & Drop all 3 files here</h4>
+                                    <p class="text-muted mb-3">or click to browse files from your computer</p>
+                                    <span class="badge bg-secondary px-3 py-2">Select 3 files at once</span>
+                                    <input type="file" id="reportsFileInput" multiple accept=".xlsx,.xls,.csv" class="d-none">
+                                </div>
+                                
+                                <div id="reportsFileList" class="list-group mb-3 d-none">
+                                    <!-- Detected files will appear here -->
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <button id="generateReportBtn" class="btn btn-primary px-4 py-2" disabled>Analyze & Generate Matrix Chart</button>
+                                    <button id="clearReportFilesBtn" class="btn btn-outline-secondary btn-sm" style="display: none;">Clear Files</button>
+                                </div>
                             </div>
-                            <textarea id="leftoversTextarea" class="form-control ariel-text" rows="20"
-                                style="direction: rtl; text-align: right;"></textarea>
                         </div>
+
+                        <!-- Matrix Grid Screen -->
+                        <div id="reportsResultScreen" class="d-none">
+                            <div class="card mb-3">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+                                        <div>
+                                            <h4 class="mb-0 text-dark">Discrepancy Matrix Chart</h4>
+                                            <span class="text-muted small">Arithmetic formula: <strong>Supplied - (Consumed - Credits)</strong></span>
+                                        </div>
+                                        <button id="backToReportsUploadBtn" class="btn btn-outline-secondary btn-sm">← Back to Upload</button>
+                                    </div>
+                                    
+                                    <div class="row g-2 mb-3">
+                                        <div class="col-md-6">
+                                            <label for="reportProductSearch" class="form-label small mb-1">Filter Products</label>
+                                            <input type="text" id="reportProductSearch" class="form-control form-control-sm" placeholder="Search products...">
+                                        </div>
+                                        <div class="col-md-6">
+                                            <label for="reportLocationSearch" class="form-label small mb-1">Filter Locations</label>
+                                            <input type="text" id="reportLocationSearch" class="form-control form-control-sm" placeholder="Search locations/columns...">
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-2 flex-wrap mb-3">
+                                        <button id="exportCsvBtn" class="btn btn-outline-secondary btn-sm flex-grow-1" style="padding: 6px 12px !important; min-height:36px;">Export CSV</button>
+                                        <button id="exportExcelBtn" class="btn btn-success btn-sm flex-grow-1" style="padding: 6px 12px !important; min-height:36px;">Export Excel</button>
+                                        <button id="exportPdfBtn" class="btn btn-danger btn-sm flex-grow-1" style="padding: 6px 12px !important; min-height:36px;">Export PDF</button>
+                                        <button id="exportHtmlBtn" class="btn btn-info text-white btn-sm flex-grow-1" style="padding: 6px 12px !important; min-height:36px;">Export HTML</button>
+                                    </div>
+                                    
+                                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
+                                        <div class="d-flex gap-3 text-muted small flex-wrap">
+                                            <div><span class="badge bg-success border border-success-subtle text-white px-2 py-1">Positive Gap</span> Supplied > Net Consumed</div>
+                                            <div><span class="badge bg-danger border border-danger-subtle text-white px-2 py-1">Negative Gap</span> Supplied < Net Consumed</div>
+                                            <div><span class="badge bg-secondary-subtle border text-muted px-2 py-1">No Gap</span> Value is 0</div>
+                                        </div>
+                                        <div class="small text-muted">
+                                            💡 Hover/click cells for calculation details. Font sizes scale by gap size.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Matrix Table Container -->
+                            <div class="matrix-table-container border rounded bg-white overflow-auto mb-3" style="max-height: 600px; box-shadow: inset 0 0 10px rgba(0,0,0,0.05);">
+                                <table id="reportsMatrixTable" class="table table-bordered m-0 text-center" style="font-size: 0.9rem; border-collapse: separate; border-spacing: 0;">
+                                    <thead>
+                                        <!-- Dynamic Header -->
+                                    </thead>
+                                    <tbody>
+                                        <!-- Dynamic Body -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Formula Detail Modal (Vanilla Javascript Operated) -->
+        <div class="modal fade" id="formulaDetailModal" tabindex="-1" style="display: none; background-color: rgba(0,0,0,0.5); z-index: 1050;">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content" style="box-shadow: 0 10px 30px rgba(0,0,0,0.2);">
+                    <div class="modal-header bg-light">
+                        <h5 class="modal-title" id="formulaDetailModalLabel">Discrepancy Calculation Details</h5>
+                        <button type="button" class="btn-close" id="closeFormulaModalBtn1" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body" id="formulaDetailModalBody" style="direction: rtl; text-align: right;">
+                        <!-- Content goes here -->
+                    </div>
+                    <div class="modal-footer bg-light">
+                        <button type="button" class="btn btn-secondary" id="closeFormulaModalBtn2">Close</button>
                     </div>
                 </div>
             </div>
@@ -144,6 +254,7 @@
                 href="README_UI.md">docs</a>.</footer>
     </div>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
     <script src="app.js"></script>
 </body>
