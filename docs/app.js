@@ -915,9 +915,12 @@ function generateReportsMatrix() {
                 reportsState.productCategories[prod] = String(row[catIdx]).trim();
             }
             
-            // Consumed quantity is kg + units
+            // Consumed quantity is kg + units (for אבטיח, 1 unit = 8 kg)
             const kgVal = parseFloat(row[kgIdx]) || 0;
-            const unitVal = parseFloat(row[unitIdx]) || 0;
+            let unitVal = parseFloat(row[unitIdx]) || 0;
+            if (prod === 'אבטיח') {
+                unitVal = unitVal * 8;
+            }
             const qty = kgVal + unitVal;
             
             const cell = getCell(prod, loc);
@@ -986,7 +989,10 @@ function generateReportsMatrix() {
             
             productsSet.add(prod);
             
-            const qty = parseFloat(row[qtyIdx]) || 0;
+            let qty = parseFloat(row[qtyIdx]) || 0;
+            if (prod === 'אבטיח') {
+                qty = qty * 8;
+            }
             
             const cell = getCell(prod, loc);
             cell.credits += qty;
@@ -1046,6 +1052,12 @@ function renderReportsMatrixTable() {
     cornerTh.innerText = `מוצר (${reportsState.products.length})`;
     headerTr.appendChild(cornerTh);
     
+    // Add Total header cell
+    const totalTh = document.createElement('th');
+    totalTh.innerText = 'סה"כ';
+    totalTh.style.backgroundColor = '#e9ecef';
+    headerTr.appendChild(totalTh);
+    
     filteredLocations.forEach(loc => {
         const th = document.createElement('th');
         th.innerText = loc;
@@ -1075,6 +1087,80 @@ function renderReportsMatrixTable() {
         prodTd.innerText = prod;
         tr.appendChild(prodTd);
         
+        // 1. Calculate and append the row Total discrepancy cell
+        let totalSupplied = 0;
+        let totalConsumed = 0;
+        let totalCredits = 0;
+        
+        reportsState.locations.forEach(loc => {
+            const cellData = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
+            totalSupplied += cellData.supplied || 0;
+            totalConsumed += cellData.consumed || 0;
+            totalCredits += cellData.credits || 0;
+        });
+        
+        const roundedSupplied = Number(totalSupplied.toFixed(2));
+        const roundedConsumed = Number(totalConsumed.toFixed(2));
+        const roundedCredits = Number(totalCredits.toFixed(2));
+        const roundedDiff = Number((roundedSupplied - (roundedConsumed - roundedCredits)).toFixed(2));
+        
+        const totalTd = document.createElement('td');
+        let totalDiffStr = roundedDiff !== 0 ? roundedDiff.toFixed(2).replace(/\.00$/, '') : '0';
+        totalTd.innerText = totalDiffStr;
+        
+        // Style total cell
+        if (roundedDiff > 0.001) {
+            totalTd.style.backgroundColor = '#d1e7dd';
+            totalTd.style.color = '#0f5132';
+            totalTd.style.fontWeight = 'bold';
+        } else if (roundedDiff < -0.001) {
+            totalTd.style.backgroundColor = '#f8d7da';
+            totalTd.style.color = '#842029';
+            totalTd.style.fontWeight = 'bold';
+        } else {
+            totalTd.style.color = '#6c757d';
+        }
+        
+        const totalFormulaText = `Total Supplied: ${roundedSupplied} | Total Consumed: ${roundedConsumed} | Total Credits: ${roundedCredits} | Formula: ${roundedSupplied} - (${roundedConsumed} - ${roundedCredits}) = ${totalDiffStr}`;
+        totalTd.title = totalFormulaText;
+        
+        // Set custom data attributes for standalone html export interactivity
+        totalTd.setAttribute('data-prod', prod);
+        totalTd.setAttribute('data-loc', 'סה"כ');
+        totalTd.setAttribute('data-supplied', roundedSupplied);
+        totalTd.setAttribute('data-consumed', roundedConsumed);
+        totalTd.setAttribute('data-credits', roundedCredits);
+        totalTd.setAttribute('data-diff', totalDiffStr);
+        
+        const suppliedDetailsList = [];
+        const consumedDetailsList = [];
+        const creditsDetailsList = [];
+        
+        reportsState.locations.forEach(loc => {
+            const cellData = reportsState.matrixData[prod] && reportsState.matrixData[prod][loc];
+            if (cellData) {
+                if (cellData.supplied > 0) suppliedDetailsList.push(`${loc}: ${Number(cellData.supplied.toFixed(2))}`);
+                if (cellData.consumed > 0) consumedDetailsList.push(`${loc}: ${Number(cellData.consumed.toFixed(2))}`);
+                if (cellData.credits > 0) creditsDetailsList.push(`${loc}: ${Number(cellData.credits.toFixed(2))}`);
+            }
+        });
+        
+        totalTd.setAttribute('data-supplied-orig', suppliedDetailsList.join('|') || 'אין תעודות משלוח');
+        totalTd.setAttribute('data-consumed-orig', consumedDetailsList.join('|') || 'אין כמויות איסוף');
+        totalTd.setAttribute('data-credits-orig', creditsDetailsList.join('|') || 'אין זיכויים');
+        
+        totalTd.className = 'clickable-cell total-cell';
+        totalTd.addEventListener('click', () => {
+            const mockDetails = {
+                originalSuppliedNames: new Set(suppliedDetailsList),
+                originalConsumedNames: new Set(consumedDetailsList),
+                originalCreditsNames: new Set(creditsDetailsList)
+            };
+            showFormulaDetailsModal(prod, 'סה"כ', roundedSupplied, roundedConsumed, roundedCredits, roundedDiff, mockDetails);
+        });
+        tr.appendChild(totalTd);
+        
+        // 2. Append individual locations cells
         filteredLocations.forEach(loc => {
             const td = document.createElement('td');
             const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0, details: null };
@@ -1228,10 +1314,23 @@ function closeFormulaDetailsModal() {
 
 function exportReportsMatrixToCSV() {
     let csvContent = '\uFEFF'; 
-    csvContent += 'Product,' + reportsState.locations.join(',') + '\n';
+    csvContent += 'Product,סה"כ,' + reportsState.locations.join(',') + '\n';
     
     reportsState.products.forEach(prod => {
-        const rowData = [prod];
+        let totalSupplied = 0;
+        let totalConsumed = 0;
+        let totalCredits = 0;
+        
+        reportsState.locations.forEach(loc => {
+            const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
+            totalSupplied += data.supplied || 0;
+            totalConsumed += data.consumed || 0;
+            totalCredits += data.credits || 0;
+        });
+        const totalDiff = totalSupplied - (totalConsumed - totalCredits);
+        
+        const rowData = [prod, totalDiff.toFixed(2).replace(/\.00$/, '')];
+        
         reportsState.locations.forEach(loc => {
             const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
             const diff = data.supplied - (data.consumed - data.credits);
@@ -1254,11 +1353,24 @@ function exportReportsMatrixToExcel() {
     const data = [];
     
     // Header row
-    const headers = ['Product', ...reportsState.locations];
+    const headers = ['Product', 'סה"כ', ...reportsState.locations];
     data.push(headers);
     
     reportsState.products.forEach(prod => {
-        const row = [prod];
+        let totalSupplied = 0;
+        let totalConsumed = 0;
+        let totalCredits = 0;
+        
+        reportsState.locations.forEach(loc => {
+            const cellData = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
+            totalSupplied += cellData.supplied || 0;
+            totalConsumed += cellData.consumed || 0;
+            totalCredits += cellData.credits || 0;
+        });
+        const totalDiff = totalSupplied - (totalConsumed - totalCredits);
+        
+        const row = [prod, Number(totalDiff.toFixed(2).replace(/\.00$/, ''))];
+        
         reportsState.locations.forEach(loc => {
             const cellData = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
             const diff = cellData.supplied - (cellData.consumed - cellData.credits);

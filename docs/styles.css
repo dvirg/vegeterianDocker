@@ -55,6 +55,11 @@ button:disabled {
     box-shadow: inset -1px 0 0 #dee2e6, 2px 0 5px rgba(0,0,0,0.05);
     white-space: nowrap;
     border-right: 1px solid #dee2e6;
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 #reportsMatrixTable thead th:first-child {
@@ -63,6 +68,36 @@ button:disabled {
     z-index: 12;
     background-color: #e9ecef;
     box-shadow: inset -1px -1px 0 #dee2e6, 2px 2px 5px rgba(0,0,0,0.05);
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+}
+
+/* Sticky second column (Total) */
+#reportsMatrixTable td:nth-child(2) {
+    position: sticky;
+    left: 140px;
+    z-index: 8;
+    background-color: #f8f9fa;
+    font-weight: bold;
+    text-align: center;
+    box-shadow: inset -1px 0 0 #dee2e6, 2px 0 5px rgba(0,0,0,0.05);
+    white-space: nowrap;
+    border-right: 1px solid #dee2e6;
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
+}
+
+#reportsMatrixTable thead th:nth-child(2) {
+    position: sticky;
+    left: 140px;
+    z-index: 12;
+    background-color: #e9ecef;
+    box-shadow: inset -1px -1px 0 #dee2e6, 2px 2px 5px rgba(0,0,0,0.05);
+    width: 90px;
+    min-width: 90px;
+    max-width: 90px;
 }
 
 /* Cell styles */
