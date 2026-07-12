@@ -1001,7 +1001,15 @@ function generateReportsMatrix() {
     }
     
     // Sort locations and products for matrix rendering
-    reportsState.locations = Array.from(locationsSet).sort((a, b) => a.localeCompare(b, 'he'));
+    reportsState.locations = Array.from(locationsSet).sort((a, b) => {
+        const isA = a.includes('רמת אלישיב');
+        const isB = b.includes('רמת אלישיב');
+        
+        if (isA && !isB) return -1;
+        if (!isA && isB) return 1;
+        
+        return a.localeCompare(b, 'he');
+    });
     
     reportsState.products = Array.from(productsSet).sort((a, b) => {
         let catA = reportsState.productCategories[a] || 'ירקות ופירות';
