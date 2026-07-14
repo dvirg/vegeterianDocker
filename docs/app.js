@@ -856,6 +856,24 @@ function updateGenerateReportButton() {
     }
 }
 
+function isKgProduct(name) {
+    if (!name) return false;
+    const ln = name.toLowerCase();
+    if (ln.includes('מיקרו')) {
+        return false;
+    }
+    return ln.includes('בננה') || 
+           ln.includes('תפו') || 
+           ln.includes('תפוא') || 
+           ln.includes("תפו'א") || 
+           ln.includes('תפו"א') || 
+           ln.includes('לימון') || 
+           ln.includes('קולורבי') || 
+           ln.includes('עגבנית-שרי') || 
+           (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || 
+           ln.includes('תפוח');
+}
+
 // Core report generation function
 function generateReportsMatrix() {
     if (!reportsState.qtyFile || !reportsState.deliveryFile || !reportsState.creditsFile) {
@@ -867,6 +885,7 @@ function generateReportsMatrix() {
     const productsSet = new Set();
     const matrix = {}; // product -> location -> { supplied, consumed, credits, details }
     reportsState.productCategories = {}; // product -> category
+    reportsState.kgProducts = new Set();
     
     // Helper to initialize cells
     function getCell(prod, loc) {
@@ -921,11 +940,10 @@ function generateReportsMatrix() {
                 reportsState.productCategories[prod] = String(row[catIdx]).trim();
             }
             
-            // Consumed quantity is kg + units (for אבטיח, 1 unit = 8 kg)
             const kgVal = parseFloat(row[kgIdx]) || 0;
-            let unitVal = parseFloat(row[unitIdx]) || 0;
-            if (prod === 'אבטיח') {
-                unitVal = unitVal * 8;
+            const unitVal = parseFloat(row[unitIdx]) || 0;
+            if (kgVal > 0) {
+                reportsState.kgProducts.add(prod);
             }
             const qty = kgVal + unitVal;
             
@@ -960,7 +978,12 @@ function generateReportsMatrix() {
             productsSet.add(prod);
             locationsSet.add(loc);
             
-            const qty = parseFloat(row[qtyIdx]) || 0;
+            let qty = parseFloat(row[qtyIdx]) || 0;
+            if (prod === 'אבטיח') {
+                qty = qty / 8;
+            } else if (prod === 'גזר') {
+                qty = qty / 1.2;
+            }
             
             const cell = getCell(prod, loc);
             cell.supplied += qty;
@@ -995,10 +1018,7 @@ function generateReportsMatrix() {
             
             productsSet.add(prod);
             
-            let qty = parseFloat(row[qtyIdx]) || 0;
-            if (prod === 'אבטיח') {
-                qty = qty * 8;
-            }
+            const qty = parseFloat(row[qtyIdx]) || 0;
             
             const cell = getCell(prod, loc);
             cell.credits += qty;
@@ -1086,9 +1106,10 @@ function renderReportsMatrixTable() {
     });
     
     visibleProducts.forEach(prod => {
+        const isKg = reportsState.kgProducts.has(prod);
         filteredLocations.forEach(loc => {
             const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
-            const diff = data.supplied - (data.consumed - data.credits);
+            const diff = data.supplied * (isKg ? 0.95 : 1) - (data.consumed - data.credits);
             const absDiff = Math.abs(diff);
             if (absDiff > maxAbsDiff) maxAbsDiff = absDiff;
         });
@@ -1113,14 +1134,24 @@ function renderReportsMatrixTable() {
             totalCredits += cellData.credits || 0;
         });
         
+        const isKg = reportsState.kgProducts.has(prod);
         const roundedSupplied = Number(totalSupplied.toFixed(2));
         const roundedConsumed = Number(totalConsumed.toFixed(2));
         const roundedCredits = Number(totalCredits.toFixed(2));
-        const roundedDiff = Number((roundedSupplied - (roundedConsumed - roundedCredits)).toFixed(2));
+        const roundedDiff = Number(((roundedSupplied * (isKg ? 0.95 : 1)) - (roundedConsumed - roundedCredits)).toFixed(2));
         
         const totalTd = document.createElement('td');
         let totalDiffStr = roundedDiff !== 0 ? roundedDiff.toFixed(2).replace(/\.00$/, '') : '0';
-        totalTd.innerText = totalDiffStr;
+        if (roundedCredits > 0) {
+            const creditsStr = roundedCredits.toFixed(2).replace(/\.00$/, '');
+            if (roundedDiff > 0.001) {
+                totalTd.innerHTML = `${totalDiffStr} &nbsp;<span style="color: #dc3545; font-size: 1.15em; font-weight: bold;">(${creditsStr})</span>`;
+            } else {
+                totalTd.innerHTML = `${totalDiffStr} &nbsp;<span style="font-size: 0.9rem; opacity: 0.85;">(${creditsStr})</span>`;
+            }
+        } else {
+            totalTd.innerText = totalDiffStr;
+        }
         
         // Style total cell
         if (roundedDiff > 0.001) {
@@ -1135,7 +1166,10 @@ function renderReportsMatrixTable() {
             totalTd.style.color = '#6c757d';
         }
         
-        const totalFormulaText = `Total Supplied: ${roundedSupplied} | Total Consumed: ${roundedConsumed} | Total Credits: ${roundedCredits} | Formula: ${roundedSupplied} - (${roundedConsumed} - ${roundedCredits}) = ${totalDiffStr}`;
+        const formulaPattern = isKg 
+            ? `(${roundedSupplied} * 0.95 - (${roundedConsumed} - ${roundedCredits}))` 
+            : `(${roundedSupplied} - (${roundedConsumed} - ${roundedCredits}))`;
+        const totalFormulaText = `Total Supplied: ${roundedSupplied} | Total Consumed: ${roundedConsumed} | Total Credits: ${roundedCredits} | Formula: ${formulaPattern} = ${totalDiffStr}`;
         totalTd.title = totalFormulaText;
         
         // Set custom data attributes for standalone html export interactivity
@@ -1145,6 +1179,7 @@ function renderReportsMatrixTable() {
         totalTd.setAttribute('data-consumed', roundedConsumed);
         totalTd.setAttribute('data-credits', roundedCredits);
         totalTd.setAttribute('data-diff', totalDiffStr);
+        totalTd.setAttribute('data-is-kg', isKg ? 'true' : 'false');
         
         const suppliedDetailsList = [];
         const consumedDetailsList = [];
@@ -1179,10 +1214,11 @@ function renderReportsMatrixTable() {
             const td = document.createElement('td');
             const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0, details: null };
             
+            const isKg = reportsState.kgProducts.has(prod);
             const supplied = Number((data.supplied || 0).toFixed(2));
             const consumed = Number((data.consumed || 0).toFixed(2));
             const credits = Number((data.credits || 0).toFixed(2));
-            const diff = Number((supplied - (consumed - credits)).toFixed(2));
+            const diff = Number(((supplied * (isKg ? 0.95 : 1)) - (consumed - credits)).toFixed(2));
             
             // Format number to 2 decimal places, clean .00
             let diffStr = '';
@@ -1192,7 +1228,16 @@ function renderReportsMatrixTable() {
                 diffStr = '0';
             }
             
-            td.innerText = diffStr;
+            if (credits > 0) {
+                const creditsStr = credits.toFixed(2).replace(/\.00$/, '');
+                if (diff > 0.001) {
+                    td.innerHTML = `${diffStr} &nbsp;<span style="color: #dc3545; font-size: 1.15em; font-weight: bold;">(${creditsStr})</span>`;
+                } else {
+                    td.innerHTML = `${diffStr} &nbsp;<span style="font-size: 0.9rem; opacity: 0.85;">(${creditsStr})</span>`;
+                }
+            } else {
+                td.innerText = diffStr;
+            }
             
             // Styling cell based on value
             if (diff > 0.001) {
@@ -1218,7 +1263,10 @@ function renderReportsMatrixTable() {
                 td.style.fontSize = '12px';
             }
             
-            const formulaText = `Supplied: ${supplied} | Consumed: ${consumed} | Credits: ${credits} | Formula: ${supplied} - (${consumed} - ${credits}) = ${diffStr}`;
+            const cellFormulaPattern = isKg 
+                ? `(${supplied} * 0.95 - (${consumed} - ${credits}))` 
+                : `(${supplied} - (${consumed} - ${credits}))`;
+            const formulaText = `Supplied: ${supplied} | Consumed: ${consumed} | Credits: ${credits} | Formula: ${cellFormulaPattern} = ${diffStr}`;
             td.title = formulaText;
             
             // Set custom data attributes for standalone html export interactivity
@@ -1228,6 +1276,7 @@ function renderReportsMatrixTable() {
             td.setAttribute('data-consumed', consumed);
             td.setAttribute('data-credits', credits);
             td.setAttribute('data-diff', diffStr);
+            td.setAttribute('data-is-kg', isKg ? 'true' : 'false');
             if (data.details) {
                 td.setAttribute('data-supplied-orig', Array.from(data.details.originalSuppliedNames || []).join('|'));
                 td.setAttribute('data-consumed-orig', Array.from(data.details.originalConsumedNames || []).join('|'));
@@ -1251,6 +1300,7 @@ function showFormulaDetailsModal(prod, loc, supplied, consumed, credits, diff, d
     const modalBody = document.getElementById('formulaDetailModalBody');
     
     const diffStr = diff.toFixed(2).replace(/\.00$/, '');
+    const isKg = reportsState.kgProducts.has(prod);
     
     const suppliedList = details && details.originalSuppliedNames.size > 0 
         ? Array.from(details.originalSuppliedNames).map(n => `<li>${escapeHtml(n)}</li>`).join('') 
@@ -1270,12 +1320,12 @@ function showFormulaDetailsModal(prod, loc, supplied, consumed, credits, diff, d
             <strong>מוצר (סטנדרטי):</strong> ${escapeHtml(prod)}
         </div>
         
-        <div class="card bg-light mb-3 text-end" style="direction: rtl;">
+        <div class="card bg-light mb-3 text-start" style="direction: ltr;">
             <div class="card-body py-2">
-                <h6 class="mb-1 text-primary">נוסחת חישוב</h6>
+                <h6 class="mb-1 text-primary">Calculation Formula</h6>
                 <div class="font-monospace fs-5">
-                    supplied - (consumed - credits) = diff <br>
-                    <strong>${supplied} - (${consumed} - ${credits}) = <span class="${diff < 0 ? 'text-danger' : (diff > 0 ? 'text-success' : '')}">${diffStr}</span></strong>
+                    ${isKg ? '(supplied * 0.95 - (consumed - credits))' : '(supplied - (consumed - credits))'} = diff <br>
+                    <strong>${isKg ? `(${supplied} * 0.95 - (${consumed} - ${credits}))` : `(${supplied} - (${consumed} - ${credits}))`} = <span class="${diff < 0 ? 'text-danger' : (diff > 0 ? 'text-success' : '')}">${diffStr}</span></strong>
                 </div>
             </div>
         </div>
@@ -1341,14 +1391,25 @@ function exportReportsMatrixToCSV() {
             totalConsumed += data.consumed || 0;
             totalCredits += data.credits || 0;
         });
-        const totalDiff = totalSupplied - (totalConsumed - totalCredits);
+        const isKg = reportsState.kgProducts.has(prod);
+        const totalDiff = totalSupplied * (isKg ? 0.95 : 1) - (totalConsumed - totalCredits);
+        let totalVal = totalDiff.toFixed(2).replace(/\.00$/, '');
+        if (totalCredits > 0) {
+            const credStr = totalCredits.toFixed(2).replace(/\.00$/, '');
+            totalVal += ` (${credStr})`;
+        }
         
-        const rowData = [prod, totalDiff.toFixed(2).replace(/\.00$/, '')];
+        const rowData = [prod, totalVal];
         
         reportsState.locations.forEach(loc => {
             const data = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
-            const diff = data.supplied - (data.consumed - data.credits);
-            rowData.push(diff.toFixed(2).replace(/\.00$/, ''));
+            const diff = data.supplied * (isKg ? 0.95 : 1) - (data.consumed - data.credits);
+            let val = diff.toFixed(2).replace(/\.00$/, '');
+            if (data.credits > 0) {
+                const credStr = data.credits.toFixed(2).replace(/\.00$/, '');
+                val += ` (${credStr})`;
+            }
+            rowData.push(val);
         });
         csvContent += rowData.map(v => `"${v.replace(/"/g, '""')}"`).join(',') + '\n';
     });
@@ -1381,14 +1442,27 @@ function exportReportsMatrixToExcel() {
             totalConsumed += cellData.consumed || 0;
             totalCredits += cellData.credits || 0;
         });
-        const totalDiff = totalSupplied - (totalConsumed - totalCredits);
+        const isKg = reportsState.kgProducts.has(prod);
+        const totalDiff = totalSupplied * (isKg ? 0.95 : 1) - (totalConsumed - totalCredits);
+        let totalVal = totalDiff.toFixed(2).replace(/\.00$/, '');
+        if (totalCredits > 0) {
+            const credStr = totalCredits.toFixed(2).replace(/\.00$/, '');
+            totalVal += ` (${credStr})`;
+        }
         
-        const row = [prod, Number(totalDiff.toFixed(2).replace(/\.00$/, ''))];
+        const row = [prod, totalCredits > 0 ? totalVal : Number(totalVal)];
         
         reportsState.locations.forEach(loc => {
             const cellData = (reportsState.matrixData[prod] && reportsState.matrixData[prod][loc]) || { supplied: 0, consumed: 0, credits: 0 };
-            const diff = cellData.supplied - (cellData.consumed - cellData.credits);
-            row.push(Number(diff.toFixed(2).replace(/\.00$/, '')));
+            const diff = cellData.supplied * (isKg ? 0.95 : 1) - (cellData.consumed - cellData.credits);
+            let val = diff.toFixed(2).replace(/\.00$/, '');
+            if (cellData.credits > 0) {
+                const credStr = cellData.credits.toFixed(2).replace(/\.00$/, '');
+                val += ` (${credStr})`;
+                row.push(val);
+            } else {
+                row.push(Number(val));
+            }
         });
         data.push(row);
     });
@@ -1578,6 +1652,8 @@ function exportReportsMatrixToHTML() {
                 const consumed = td.getAttribute('data-consumed');
                 const credits = td.getAttribute('data-credits');
                 const diff = td.getAttribute('data-diff');
+                const isKg = td.getAttribute('data-is-kg') === 'true';
+                const isCarrot = td.getAttribute('data-is-carrot') === 'true';
                 
                 const suppliedOrig = td.getAttribute('data-supplied-orig') || '';
                 const consumedOrig = td.getAttribute('data-consumed-orig') || '';
@@ -1593,11 +1669,11 @@ function exportReportsMatrixToHTML() {
                         <strong>מוצר (סטנדרטי):</strong> \${prod}
                     </div>
                     
-                    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-bottom: 15px;">
-                        <h6 style="margin: 0 0 5px 0; color: #0d6efd; font-size: 0.9rem;">נוסחת חישוב</h6>
+                    <div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 15px; margin-bottom: 15px; direction: ltr; text-align: left;">
+                        <h6 style="margin: 0 0 5px 0; color: #0d6efd; font-size: 0.9rem;">Calculation Formula</h6>
                         <div style="font-family: monospace; font-size: 1.2rem; font-weight: bold;">
-                            supplied - (consumed - credits) = diff <br>
-                            \${supplied} - (\${consumed} - \${credits}) = <span style="color: \${Number(diff) < 0 ? '#dc3545' : (Number(diff) > 0 ? '#198754' : '#6c757d')}">\${diff}</span>
+                            \${isKg ? '(supplied * 0.95 - (consumed - credits))' : '(supplied - (consumed - credits))'} = diff <br>
+                            \${isKg ? '(' + supplied + ' * 0.95 - (' + consumed + ' - ' + credits + '))' : '(' + supplied + ' - (' + consumed + ' - ' + credits + '))'} = <span style="color: \${Number(diff) < 0 ? '#dc3545' : (Number(diff) > 0 ? '#198754' : '#6c757d')}">\${diff}</span>
                         </div>
                     </div>
                     
