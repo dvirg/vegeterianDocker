@@ -282,7 +282,9 @@ function renderLeftovers() {
             if (!items.has(name)) {
                 let defaultType = it.type || 'unit';
                 const ln = name.toLowerCase();
-                if (ln.includes('בננה') || ln.includes('תפו') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || ln.includes('תפוח')) {
+                if (ln.includes('מיקרו')) {
+                    defaultType = 'unit';
+                } else if (ln.includes('בננה') || ln.includes('תפו') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || ln.includes('תפוח')) {
                     defaultType = 'kg';
                 }
                 items.set(name, { name, samples: [], type: defaultType });
@@ -396,7 +398,9 @@ function buildLeftoversText() {
             if (!existing.sampleQtyText && it.qty) existing.sampleQtyText = it.qty;
             if (it.type) existing.type = it.type;
             const lower = renamed.toLowerCase();
-            if ((lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || (lower.includes('גזר') && !lower.includes('גזר-צבעוני')) || lower.includes('תפוח')) && !lower.includes('מיקרו')) {
+            if (lower.includes('מיקרו')) {
+                existing.type = 'unit';
+            } else if ((lower.includes('בננה') || lower.includes('תפו') || lower.includes('לימון') || lower.includes('קולורבי') || lower.includes('עגבנית-שרי') || (lower.includes('גזר') && !lower.includes('גזר-צבעוני')) || lower.includes('תפוח')) && !lower.includes('מיקרו')) {
                 existing.type = 'kg';
             }
             itemsMap.set(renamed, existing);
@@ -427,7 +431,9 @@ function buildLeftoversText() {
             let resolvedType = info.type || 'unit';
             try {
                 const ln = String(renamed).toLowerCase();
-                if ((ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א') ||
+                if (ln.includes('מיקרו')) {
+                    resolvedType = 'unit';
+                } else if ((ln.includes('תפו') || ln.includes('תפוא') || ln.includes("תפו'א") || ln.includes('תפו"א') ||
                      ln.includes('בננה') || ln.includes('לימון') || ln.includes('קולורבי') || ln.includes('עגבנית-שרי') || (ln.includes('גזר') && !ln.includes('גזר-צבעוני')) || ln.includes('תפוח')) && !ln.includes('מיקרו')) {
                     resolvedType = 'kg';
                 }
