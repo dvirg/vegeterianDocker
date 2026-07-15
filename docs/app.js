@@ -680,7 +680,7 @@ function getSheetForDeliveryCustomer(custName) {
     if (clean.includes('רמת גן')) return 'רמת גן';
     if (clean.includes('שומריה')) return 'שומריה';
     if (clean.includes('תפוח')) return 'תפוח';
-    if (clean.includes('מר"ץ') || clean.includes('מרץ')) return 'בית מדרש מרץ מבשרת';
+    if (clean.includes('מר"ץ') || clean.includes('מרץ') || clean.includes('מבשרת')) return 'בית מדרש מרץ מבשרת';
     if (clean.includes('בני דוד') || clean.includes('עלי בני דוד')) return 'בני דוד עלי';
     if (clean.includes('אלון מורה')) return 'אלון מורה';
     return null;
@@ -793,7 +793,7 @@ async function parseExcel(file) {
 // Handle multiple files selected/dropped
 async function handleReportFiles(filesList) {
     reportsState.qtyFile = null;
-    reportsState.deliveryFile = null;
+    reportsState.deliveryFiles = [];
     reportsState.creditsFile = null;
     
     const fileListEl = document.getElementById('reportsFileList');
@@ -816,7 +816,7 @@ async function handleReportFiles(filesList) {
             } else if (file.name.toLowerCase().endsWith('.xlsx') || file.name.toLowerCase().endsWith('.xls')) {
                 const wb = await parseExcel(file);
                 if (wb.SheetNames.includes('DataSheet')) {
-                    reportsState.deliveryFile = { name: file.name, wb: wb };
+                    reportsState.deliveryFiles.push({ name: file.name, wb: wb });
                     itemEl.querySelector('.badge').className = 'badge bg-success';
                     itemEl.querySelector('.badge').innerText = '📦 Delivery Notes File';
                 } else {
@@ -843,7 +843,7 @@ function updateGenerateReportButton() {
     const clearBtn = document.getElementById('clearReportFilesBtn');
     
     const hasQty = !!reportsState.qtyFile;
-    const hasDelivery = !!reportsState.deliveryFile;
+    const hasDelivery = reportsState.deliveryFiles && reportsState.deliveryFiles.length > 0;
     const hasCredits = !!reportsState.creditsFile;
     
     btn.disabled = !(hasQty && hasDelivery && hasCredits);
@@ -876,7 +876,7 @@ function isKgProduct(name) {
 
 // Core report generation function
 function generateReportsMatrix() {
-    if (!reportsState.qtyFile || !reportsState.deliveryFile || !reportsState.creditsFile) {
+    if (!reportsState.qtyFile || !reportsState.deliveryFiles || reportsState.deliveryFiles.length === 0 || !reportsState.creditsFile) {
         alert("Missing files. Please upload all three files.");
         return;
     }
@@ -953,42 +953,63 @@ function generateReportsMatrix() {
         }
     });
     
-    // 2. Process Delivery Notes File (Supplied)
-    const deliveryWb = reportsState.deliveryFile.wb;
-    const delSheet = deliveryWb.Sheets['DataSheet'];
-    const delRows = XLSX.utils.sheet_to_json(delSheet, { header: 1 });
-    if (delRows.length > 1) {
-        const header = delRows[0];
-        const custNameIdx = header.indexOf('שם לקוח');
-        const prodNameIdx = header.indexOf('תאור מוצר');
-        const qtyIdx = header.indexOf('כמות');
-        
-        for (let r = 1; r < delRows.length; r++) {
-            const row = delRows[r];
-            if (!row || row.length === 0) continue;
+    // 2. Process Delivery Notes Files (Supplied)
+    if (reportsState.deliveryFiles && reportsState.deliveryFiles.length > 0) {
+        reportsState.deliveryFiles.forEach(fileObj => {
+            const wb = fileObj.wb;
+            const fileName = fileObj.name;
+            const delSheet = wb.Sheets['DataSheet'];
+            if (!delSheet) return;
             
-            const rawCustName = String(row[custNameIdx] || '').trim();
-            const loc = getSheetForDeliveryCustomer(rawCustName);
-            if (!loc) continue; // Not a target location
+            const delRows = XLSX.utils.sheet_to_json(delSheet, { header: 1 });
+            if (delRows.length <= 1) return;
             
-            const rawProdName = String(row[prodNameIdx] || '').trim();
-            const prod = canonicalizeProduct(rawProdName);
-            if (!prod) continue;
-            
-            productsSet.add(prod);
-            locationsSet.add(loc);
-            
-            let qty = parseFloat(row[qtyIdx]) || 0;
-            if (prod === 'אבטיח') {
-                qty = qty / 8;
-            } else if (prod === 'גזר') {
-                qty = qty / 1.2;
+            const header = delRows[0];
+            const custNameIdx = header.indexOf('שם לקוח');
+            const prodNameIdx = header.indexOf('תאור מוצר');
+            let qtyIdx = header.indexOf('כמות');
+            if (qtyIdx === -1) {
+                qtyIdx = header.indexOf('כמות מפעל');
             }
             
-            const cell = getCell(prod, loc);
-            cell.supplied += qty;
-            cell.details.originalSuppliedNames.add(`${rawProdName} (${qty})`);
-        }
+            if (prodNameIdx === -1 || qtyIdx === -1) return;
+            
+            let fileLocation = null;
+            if (custNameIdx === -1) {
+                fileLocation = getSheetForDeliveryCustomer(fileName);
+            }
+            
+            for (let r = 1; r < delRows.length; r++) {
+                const row = delRows[r];
+                if (!row || row.length === 0) continue;
+                
+                let loc = fileLocation;
+                if (custNameIdx !== -1) {
+                    const rawCustName = String(row[custNameIdx] || '').trim();
+                    loc = getSheetForDeliveryCustomer(rawCustName);
+                }
+                
+                if (!loc) continue; // Not a target location
+                
+                const rawProdName = String(row[prodNameIdx] || '').trim();
+                const prod = canonicalizeProduct(rawProdName);
+                if (!prod) continue;
+                
+                productsSet.add(prod);
+                locationsSet.add(loc);
+                
+                let qty = parseFloat(row[qtyIdx]) || 0;
+                if (prod === 'אבטיח') {
+                    qty = qty / 8;
+                } else if (prod === 'גזר') {
+                    qty = qty / 1.2;
+                }
+                
+                const cell = getCell(prod, loc);
+                cell.supplied += qty;
+                cell.details.originalSuppliedNames.add(`${rawProdName} (${qty})`);
+            }
+        });
     }
     
     // 3. Process Credits File (Credits)
@@ -1758,7 +1779,7 @@ function initReportsActions() {
     
     clearBtn.addEventListener('click', () => {
         reportsState.qtyFile = null;
-        reportsState.deliveryFile = null;
+        reportsState.deliveryFiles = [];
         reportsState.creditsFile = null;
         fileInput.value = '';
         updateGenerateReportButton();
